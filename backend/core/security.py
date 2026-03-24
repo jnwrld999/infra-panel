@@ -5,12 +5,19 @@ from jose import jwt, JWTError
 from backend.config import get_settings
 
 
+_fernet_instance: Fernet | None = None
+
+
 def _get_fernet() -> Fernet:
-    settings = get_settings()
-    key = settings.fernet_key
-    if not key:
-        key = Fernet.generate_key().decode()
-    return Fernet(key.encode() if isinstance(key, str) else key)
+    global _fernet_instance
+    if _fernet_instance is None:
+        settings = get_settings()
+        key = settings.fernet_key
+        if not key:
+            # Fallback for tests only — production must set FERNET_KEY
+            key = Fernet.generate_key().decode()
+        _fernet_instance = Fernet(key.encode() if isinstance(key, str) else key)
+    return _fernet_instance
 
 
 def encrypt(plaintext: str) -> str:

@@ -47,8 +47,9 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
 
 
 def _clear_auth_cookies(response: Response):
-    response.delete_cookie("access_token", httponly=True)
-    response.delete_cookie("refresh_token", httponly=True)
+    is_secure = settings.frontend_url.startswith("https")
+    response.delete_cookie("access_token", httponly=True, samesite="lax", secure=is_secure)
+    response.delete_cookie("refresh_token", httponly=True, samesite="lax", secure=is_secure)
 
 
 def _add_audit_log(db: Session, action: str, actor_id: str | None = None,

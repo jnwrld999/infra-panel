@@ -63,8 +63,7 @@ def get_current_user(
 
 
 def require_owner(current_user: DiscordUser = Depends(get_current_user)) -> DiscordUser:
-    settings = get_settings()
-    if current_user.discord_id != settings.owner_discord_id:
+    if current_user.role != "owner":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Owner access required",

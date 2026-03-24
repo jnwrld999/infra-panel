@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -9,12 +10,14 @@ from backend.api import auth
 
 settings = get_settings()
 
-app = FastAPI(
-    title="InfraPanel API",
-    version="1.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables()
+    yield
+
+
+app = FastAPI(title="InfraPanel API", version="1.0.0", docs_url="/api/docs", redoc_url="/api/redoc", lifespan=lifespan)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -28,11 +31,6 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/auth")
-
-
-@app.on_event("startup")
-def on_startup():
-    create_tables()
 
 
 @app.get("/api/health")
