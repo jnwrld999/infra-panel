@@ -1,0 +1,7 @@
+{
+  "nav": { "dashboard": "Dashboard", "servers": "Servers", "sync": "Synchronization", "services": "Services", "plugins": "Plugins", "bots": "Bots", "approvals": "Approvals", "users": "Users & Roles", "logs": "Logs", "settings": "Settings" },
+  "common": { "loading": "Loading...", "error": "Error", "success": "Success", "save": "Save", "cancel": "Cancel", "delete": "Delete", "edit": "Edit", "add": "Add", "confirm": "Confirm", "online": "Online", "offline": "Offline", "unknown": "Unknown", "never": "Never" },
+  "dashboard": { "title": "Dashboard", "serversOnline": "Servers Online", "pendingApprovals": "Pending Approvals", "recentErrors": "Recent Errors" },
+  "auth": { "loginWithDiscord": "Login with Discord", "noAccess": "No Access", "noAccessDesc": "You don't have access to InfraPanel. Contact the owner.", "logout": "Logout" },
+  "settings": { "title": "Settings", "language": "Language", "version": "Version", "about": "About InfraPanel" }
+}
