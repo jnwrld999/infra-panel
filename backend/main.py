@@ -7,6 +7,7 @@ from backend.config import get_settings
 from backend.core.rate_limit import limiter
 from backend.db.session import create_tables
 from backend.api import auth
+from backend.api import servers
 
 settings = get_settings()
 
@@ -31,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/auth")
+app.include_router(servers.router)
 
 
 @app.get("/api/health")
