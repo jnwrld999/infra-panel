@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -13,6 +14,7 @@ import {
   Settings,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
+import client from '@/api/client'
 
 interface NavItem {
   to: string
@@ -25,6 +27,11 @@ interface NavItem {
 export function Sidebar() {
   const { t } = useTranslation()
   const { user, logout } = useAuthStore()
+  const [version, setVersion] = useState<string | null>(null)
+
+  useEffect(() => {
+    client.get<{ version: string }>('/info').then((res) => setVersion(res.data.version)).catch(() => {})
+  }, [])
 
   const navItems: NavItem[] = [
     { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard size={18} /> },
@@ -44,7 +51,12 @@ export function Sidebar() {
   return (
     <aside className="w-56 min-h-screen flex flex-col bg-card border-r border-border">
       <div className="px-4 py-5 border-b border-border">
-        <h1 className="text-lg font-bold text-primary">InfraPanel</h1>
+        <div className="flex items-baseline gap-2">
+          <h1 className="text-lg font-bold text-primary">InfraPanel</h1>
+          {version && (
+            <span className="text-xs text-muted-foreground font-mono">v{version}</span>
+          )}
+        </div>
         {user && (
           <div className="mt-1 text-sm text-muted-foreground">
             {user.username}

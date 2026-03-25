@@ -3,5 +3,5 @@
   "common": { "loading": "Lädt...", "error": "Fehler", "success": "Erfolgreich", "save": "Speichern", "cancel": "Abbrechen", "delete": "Löschen", "edit": "Bearbeiten", "add": "Hinzufügen", "confirm": "Bestätigen", "online": "Online", "offline": "Offline", "unknown": "Unbekannt", "never": "Nie" },
   "dashboard": { "title": "Dashboard", "serversOnline": "Server Online", "pendingApprovals": "Ausstehende Freigaben", "recentErrors": "Letzte Fehler" },
   "auth": { "loginWithDiscord": "Mit Discord einloggen", "noAccess": "Kein Zugriff", "noAccessDesc": "Du hast keinen Zugriff auf InfraPanel. Wende dich an den Owner.", "logout": "Ausloggen" },
-  "settings": { "title": "Einstellungen", "language": "Sprache", "version": "Version", "about": "Über InfraPanel" }
+  "settings": { "title": "Einstellungen", "language": "Sprache", "version": "Version", "buildDate": "Build-Datum", "about": "Über InfraPanel" }
 }
