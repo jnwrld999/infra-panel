@@ -45,11 +45,12 @@ export default function Plugins() {
     if (tab === 'discord' && botConfigs.length === 0) {
       client.get<Bot[]>('/bots/').then((r) => {
         const nonRestricted = r.data.filter((b) => !b.restricted && b.server_id)
+        const savedPaths = getSavedPaths()
         setBotConfigs(nonRestricted.map((b) => ({
           botId: b.id,
           botName: b.name,
           serverId: b.server_id!,
-          botPath: '/root/AxellottenTV',
+          botPath: savedPaths[`bot_${b.id}`] || `/root/${b.name}`,
           cogs: [],
           loading: false,
         })))
