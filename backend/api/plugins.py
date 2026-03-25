@@ -66,6 +66,42 @@ def delete_minecraft_plugin(
     return svc.delete_plugin(plugins_path, filename)
 
 
+@router.get("/read-file")
+def read_file_content(
+    server_id: int,
+    path: str,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Read a file's content via SSH for code viewing. Max 100KB."""
+    if ".." in path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    server = _get_server_or_404(server_id, db)
+    from backend.services.ssh_service import SSHService
+    with SSHService(server) as ssh:
+        result = ssh.run_command(f"head -c 102400 {path}")
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail="File not found or not readable")
+    return {"content": result.get("stdout", ""), "path": path}
+
+
+@router.get("/list-files")
+def list_files(
+    server_id: int,
+    path: str,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """List files in a directory via SSH."""
+    if ".." in path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+    server = _get_server_or_404(server_id, db)
+    from backend.services.ssh_service import SSHService
+    with SSHService(server) as ssh:
+        files = ssh.list_files(path)
+    return {"files": files, "path": path}
+
+
 @router.get("/discord-bot/{bot_id}")
 def list_discord_bot_cogs(
     bot_id: int,
