@@ -8,6 +8,16 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      (function() {
+        try {
+          var s = JSON.parse(localStorage.getItem('infra-panel-ui') || '{}');
+          var state = s.state || {};
+          if (state.theme) document.documentElement.setAttribute('data-theme', state.theme);
+          if (state.fontSize) document.documentElement.setAttribute('data-size', state.fontSize);
+        } catch(e) {}
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
