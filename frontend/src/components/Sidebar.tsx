@@ -24,7 +24,8 @@ export function Sidebar() {
   const [version, setVersion] = useState<string | null>(null)
   const isDragging = useRef(false)
   const dragStartX = useRef(0)
-  const dragStartWidth = useRef(sidebarWidth)
+  const dragStartWidth = useRef(0)
+  const [isResizing, setIsResizing] = useState(false)
 
   useEffect(() => {
     client.get<{ version: string }>('/info').then((r) => setVersion(r.data.version)).catch(() => {})
@@ -47,9 +48,11 @@ export function Sidebar() {
 
   // Resize drag handlers
   const handleDragStart = (e: React.MouseEvent) => {
+    e.preventDefault()
     isDragging.current = true
     dragStartX.current = e.clientX
     dragStartWidth.current = sidebarWidth
+    setIsResizing(true)
 
     const onMove = (ev: MouseEvent) => {
       if (!isDragging.current) return
@@ -59,11 +62,14 @@ export function Sidebar() {
     }
     const onUp = () => {
       isDragging.current = false
+      setIsResizing(false)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
+      window.removeEventListener('mouseup', onUp)
     }
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
+    window.addEventListener('mouseup', onUp)
   }
 
   const collapsed = sidebarCollapsed
@@ -72,7 +78,7 @@ export function Sidebar() {
   return (
     <aside
       style={{ width }}
-      className="relative min-h-screen flex flex-col bg-card border-r border-border transition-all duration-200 ease-in-out overflow-hidden flex-shrink-0"
+      className={`relative min-h-screen flex flex-col bg-card border-r border-border flex-shrink-0 overflow-hidden ${!isResizing ? 'transition-[width] duration-200 ease-in-out' : ''}`}
     >
       {/* Header */}
       <div className={`px-3 py-4 border-b border-border ${collapsed ? 'flex justify-center' : ''}`}>
@@ -152,7 +158,7 @@ export function Sidebar() {
       {!collapsed && (
         <div
           onMouseDown={handleDragStart}
-          className="absolute top-0 right-0 w-1 h-full cursor-col-resize hover:bg-primary/30 transition-colors"
+          className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-primary/30 transition-colors"
         />
       )}
     </aside>
