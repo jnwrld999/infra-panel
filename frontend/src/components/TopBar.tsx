@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Clock, AlertTriangle, Loader, Circle } from 'lucide-react'
+import { RefreshCw, Clock, AlertTriangle, Loader, Circle, RotateCcw } from 'lucide-react'
 import client from '@/api/client'
 
 interface AppInfo { version: string; build_date: string }
@@ -96,9 +96,20 @@ export function TopBar() {
         </>
       )}
 
-      <div className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
-        <Circle size={8} className="fill-green-400 text-green-400" />
-        <span>Discord</span>
+      <div className="ml-auto flex items-center gap-3">
+        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Circle size={8} className="fill-green-400 text-green-400" />
+          <span>Discord</span>
+        </div>
+        <div className="w-px h-3 bg-border flex-shrink-0" />
+        <button
+          onClick={() => window.location.reload()}
+          title="App neu starten"
+          className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        >
+          <RotateCcw size={12} />
+          Neu starten
+        </button>
       </div>
     </div>
   )
