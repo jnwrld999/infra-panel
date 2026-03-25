@@ -1,8 +1,9 @@
 import './i18n'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { Layout } from '@/components/Layout'
+import { WhatsNewModal } from '@/components/WhatsNewModal'
 import Login from '@/pages/Login'
 import NoAccess from '@/pages/NoAccess'
 import Dashboard from '@/pages/Dashboard'
@@ -36,9 +37,26 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const { fetchMe } = useAuthStore()
+  const [whatsNew, setWhatsNew] = useState<string | null>(null)
 
   useEffect(() => {
     fetchMe()
+
+    // Check for new version
+    const SEEN_KEY = 'infra-panel-seen-version'
+    fetch('/api/info')
+      .then((r) => r.json())
+      .then((data: { version: string }) => {
+        const seen = localStorage.getItem(SEEN_KEY)
+        if (!seen) {
+          // First launch — set key, don't show modal
+          localStorage.setItem(SEEN_KEY, data.version)
+        } else if (seen !== data.version) {
+          // Version changed — show modal
+          setWhatsNew(data.version)
+        }
+      })
+      .catch(() => {})
   }, [fetchMe])
 
   return (
@@ -58,6 +76,15 @@ export default function App() {
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      {whatsNew && (
+        <WhatsNewModal
+          version={whatsNew}
+          onClose={() => {
+            localStorage.setItem('infra-panel-seen-version', whatsNew)
+            setWhatsNew(null)
+          }}
+        />
+      )}
     </BrowserRouter>
   )
 }
