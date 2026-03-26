@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Eye, X, Loader, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
+import { Plus, RefreshCw, Eye, EyeOff, Copy, X, Loader, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
 import client from '@/api/client'
@@ -32,6 +32,7 @@ export default function Bots() {
   const [bots, setBots] = useState<Bot[]>([])
   const [servers, setServers] = useState<Server[]>([])
   const [tokens, setTokens] = useState<Record<number, string>>({})
+  const [tokenRevealed, setTokenRevealed] = useState<Record<number, boolean>>({})
   const [expanded, setExpanded] = useState<Record<number, boolean>>({})
   const [cogs, setCogs] = useState<Record<number, Plugin[]>>({})
   const [cogsLoading, setCogsLoading] = useState<Record<number, boolean>>({})
@@ -57,6 +58,15 @@ export default function Bots() {
     client.get(`/bots/${id}/token`)
       .then((r) => setTokens((prev) => ({ ...prev, [id]: r.data.token })))
       .catch(() => {})
+  }
+
+  const revealToken = (id: number) => {
+    setTokenRevealed(prev => ({ ...prev, [id]: true }))
+    setTimeout(() => setTokenRevealed(prev => ({ ...prev, [id]: false })), 10000)
+  }
+
+  const copyToken = (id: number) => {
+    if (tokens[id]) navigator.clipboard.writeText(tokens[id])
   }
 
   const toggleExpand = (bot: Bot) => {
@@ -201,8 +211,18 @@ export default function Bots() {
 
             {/* Token display */}
             {tokens[bot.id] && (
-              <div className="mx-5 mb-3 text-xs font-mono bg-muted border border-border rounded p-2 text-green-400 break-all">
-                {tokens[bot.id]}
+              <div className="mx-5 mb-3 flex items-center gap-2 p-2 rounded bg-muted border border-border text-xs font-mono">
+                <span className="flex-1 text-green-400 break-all">
+                  {tokenRevealed[bot.id] ? tokens[bot.id] : '•'.repeat(Math.min(tokens[bot.id].length, 40))}
+                </span>
+                <button onClick={() => revealToken(bot.id)} title={tokenRevealed[bot.id] ? 'Verbergen' : 'Anzeigen'}
+                  className="flex-shrink-0 p-1 rounded hover:bg-border transition-colors text-muted-foreground hover:text-foreground">
+                  {tokenRevealed[bot.id] ? <EyeOff size={12} /> : <Eye size={12} />}
+                </button>
+                <button onClick={() => copyToken(bot.id)} title="Kopieren"
+                  className="flex-shrink-0 p-1 rounded hover:bg-border transition-colors text-muted-foreground hover:text-foreground">
+                  <Copy size={12} />
+                </button>
               </div>
             )}
 
