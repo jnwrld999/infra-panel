@@ -21,6 +21,7 @@ class ApprovalCreate(BaseModel):
 class ApprovalReview(BaseModel):
     status: str
     notes: Optional[str] = None
+    dm_message: Optional[str] = None
 
 
 class ApprovalOut(BaseModel):
@@ -109,4 +110,22 @@ def review_approval(
     db.add(audit)
     db.commit()
     db.refresh(approval)
+
+    # Best-effort DM to submitter
+    if body.status in ("approved", "denied"):
+        dm_msg = body.dm_message or (
+            "✅ Deine Anfrage wurde **genehmigt**." if body.status == "approved"
+            else "❌ Deine Anfrage wurde **abgelehnt**."
+        )
+        try:
+            import asyncio
+            from backend.discord_bot.bot import send_dm as _send_dm
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                loop.create_task(_send_dm(approval.submitted_by, dm_msg))
+            else:
+                asyncio.run(_send_dm(approval.submitted_by, dm_msg))
+        except Exception:
+            pass  # Bot not running — skip DM silently
+
     return approval
