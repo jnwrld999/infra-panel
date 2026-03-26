@@ -61,6 +61,7 @@ class Bot(Base):
     type = Column(String(64), default="discord")
     status = Column(String(64), default="stopped")
     description = Column(Text, nullable=True)
+    owner_discord_id = Column(String, nullable=True)  # Discord ID des Bot-Owners
     created_at = Column(DateTime(timezone=True), default=utcnow)
 
     server = relationship("Server", back_populates="bots")
