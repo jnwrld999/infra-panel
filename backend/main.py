@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,7 +28,14 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="InfraPanel API", version=__version__, docs_url="/api/docs", redoc_url="/api/redoc", lifespan=lifespan)
+_dev = os.getenv("ENV", "production") != "production"
+app = FastAPI(
+    title="InfraPanel API",
+    version=__version__,
+    docs_url="/api/docs" if _dev else None,
+    redoc_url="/api/redoc" if _dev else None,
+    lifespan=lifespan,
+)
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -36,8 +44,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins_list,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Cookie"],
 )
 
 app.include_router(info_router.router)
