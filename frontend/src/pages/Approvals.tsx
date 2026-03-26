@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import client from '@/api/client'
+import { EmbedPreview } from '@/components/EmbedPreview'
 
 interface Approval {
   id: number
   type: string
   submitted_by: string
-  payload?: { description?: string }
+  payload?: { description?: string; embed?: Record<string, unknown> }
   description?: string
   created_at: string
 }
@@ -52,6 +53,11 @@ export default function Approvals() {
                 <div className="text-muted-foreground text-sm mb-1">Von: <span className="text-foreground">{approval.submitted_by}</span></div>
                 {(approval.payload?.description || approval.description) && (
                   <p className="text-muted-foreground text-sm">{approval.payload?.description || approval.description}</p>
+                )}
+                {approval.payload?.embed && (
+                  <div className="mt-2">
+                    <EmbedPreview embed={approval.payload.embed as Parameters<typeof EmbedPreview>[0]['embed']} />
+                  </div>
                 )}
                 <div className="text-muted-foreground text-xs mt-1">{new Date(approval.created_at).toLocaleString()}</div>
               </div>
