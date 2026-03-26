@@ -19,6 +19,7 @@ interface Server {
   ssh_key_path?: string | null
   description?: string | null
   status: string
+  status_message?: string | null
   tags: string[]
 }
 
@@ -112,6 +113,11 @@ export default function Servers() {
                 </button>
               </div>
             </div>
+            {(server.status === 'offline' || server.status === 'unknown') && server.status_message && (
+              <p className="text-[11px] text-muted-foreground mb-1 truncate" title={server.status_message}>
+                {server.status_message}
+              </p>
+            )}
             <div className="text-muted-foreground text-sm space-y-1">
               <div><span className="text-foreground">Host:</span> {server.host}:{server.port}</div>
               <div><span className="text-foreground">SSH User:</span> {server.ssh_user}</div>

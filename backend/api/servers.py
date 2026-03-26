@@ -60,6 +60,7 @@ def _server_to_dict(server: Server) -> dict:
         "description": server.description,
         "tags": server.tags if server.tags is not None else [],
         "status": server.status,
+        "status_message": server.status_message,
         "last_checked": server.last_checked.isoformat() if server.last_checked else None,
     }
 

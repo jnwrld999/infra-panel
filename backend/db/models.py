@@ -25,6 +25,7 @@ class Server(Base):
     description = Column(Text, nullable=True)
     tags = Column(JSON, default=list)
     status = Column(String(64), default="unknown")
+    status_message = Column(Text, nullable=True)
     last_checked = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow)
 

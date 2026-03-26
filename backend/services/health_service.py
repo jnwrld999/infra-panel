@@ -10,8 +10,10 @@ async def check_server_health(server: Server, db: Session) -> str:
     try:
         result = await loop.run_in_executor(None, svc.test_connection)
         status = "online" if result["success"] else "offline"
-    except Exception:
+        server.status_message = None if result["success"] else result.get("message", "")
+    except Exception as e:
         status = "offline"
+        server.status_message = str(e)
     server.status = status
     server.last_checked = datetime.now(timezone.utc)
     db.add(AppLog(level="INFO", category="health", server_id=server.id, message=f"Health check: {status}"))
