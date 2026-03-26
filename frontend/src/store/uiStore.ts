@@ -15,6 +15,7 @@ interface UIState {
   pluginView: 'list' | 'grid'
   stayLoggedIn: boolean
   devMode: boolean
+  lastReload: Date | null
   setTheme: (t: Theme) => void
   setFontSize: (s: FontSize) => void
   setSidebarCollapsed: (v: boolean) => void
@@ -23,6 +24,7 @@ interface UIState {
   setPluginView: (v: 'list' | 'grid') => void
   setStayLoggedIn: (v: boolean) => void
   setDevMode: (v: boolean) => void
+  setLastReload: (d: Date) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -36,6 +38,7 @@ export const useUIStore = create<UIState>()(
       pluginView: 'list',
       stayLoggedIn: false,
       devMode: false,
+      lastReload: null as Date | null,
       setTheme: (theme) => set({ theme }),
       setFontSize: (fontSize) => set({ fontSize }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
@@ -44,7 +47,14 @@ export const useUIStore = create<UIState>()(
       setPluginView: (pluginView) => set({ pluginView }),
       setStayLoggedIn: (stayLoggedIn) => set({ stayLoggedIn }),
       setDevMode: (devMode) => set({ devMode }),
+      setLastReload: (lastReload: Date) => set({ lastReload }),
     }),
-    { name: 'infra-panel-ui' }
+    {
+      name: 'infra-panel-ui',
+      partialize: (state: UIState) => {
+        const { lastReload, setLastReload, ...persistedState } = state
+        return persistedState
+      }
+    }
   )
 )

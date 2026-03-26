@@ -3,6 +3,7 @@ import { Plus, RefreshCw, Eye, X, Loader, ChevronDown, ChevronRight, MessageSqua
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
 import client from '@/api/client'
+import { useUIStore } from '@/store/uiStore'
 
 interface Bot {
   id: number
@@ -45,7 +46,10 @@ export default function Bots() {
   const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
 
   useEffect(() => {
-    client.get<Bot[]>('/bots/').then((r) => setBots(r.data)).catch(() => {})
+    client.get<Bot[]>('/bots/').then((r) => {
+      setBots(r.data)
+      useUIStore.getState().setLastReload(new Date())
+    }).catch(() => {})
     client.get<Server[]>('/servers/').then((r) => setServers(r.data)).catch(() => {})
   }, [])
 

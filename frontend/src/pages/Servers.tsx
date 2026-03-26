@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, Pencil, RotateCcw } from 'lucide-react'
 import { ServerModal } from '@/components/ServerModal'
 import client from '@/api/client'
+import { useUIStore } from '@/store/uiStore'
 
 const STATUS_MAP: Record<string, { label: string; dotClass: string; textClass: string }> = {
   online:  { label: 'Live',    dotClass: 'bg-green-400',                textClass: 'text-green-400'  },
@@ -28,7 +29,10 @@ export default function Servers() {
   const [editServer, setEditServer] = useState<Server | null>(null)
 
   const fetchServers = () => {
-    client.get('/servers/').then((r) => setServers(r.data)).catch(() => {})
+    client.get('/servers/').then((r) => {
+      setServers(r.data)
+      useUIStore.getState().setLastReload(new Date())
+    }).catch(() => {})
   }
 
   useEffect(() => {

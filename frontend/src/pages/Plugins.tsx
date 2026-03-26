@@ -59,6 +59,7 @@ export default function Plugins() {
         loading: false,
       }))
       setConfigs(newConfigs)
+      useUIStore.getState().setLastReload(new Date())
       // Auto-load immediately
       newConfigs.forEach(c => loadPluginsForServer(c.serverId, c.path))
     }).catch(() => {})

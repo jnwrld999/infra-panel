@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { RefreshCw, Clock, AlertTriangle, Loader, RotateCcw } from 'lucide-react'
 import client from '@/api/client'
+import { useUIStore } from '@/store/uiStore'
 
 interface AppInfo { version: string; build_date: string; latest_version?: string }
 interface SyncJob { id: number; status: string; completed_at: string | null }
@@ -15,6 +16,7 @@ export function TopBar() {
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [runningJobs, setRunningJobs] = useState(0)
   const [errorCount, setErrorCount] = useState(0)
+  const lastReload = useUIStore((s) => s.lastReload)
 
   useEffect(() => {
     // Version check
@@ -116,6 +118,15 @@ export function TopBar() {
             <Loader size={12} className="animate-spin" />
             <span>{runningJobs} Job{runningJobs > 1 ? 's' : ''} laufen</span>
           </div>
+        </>
+      )}
+
+      {lastReload && (
+        <>
+          <div className="w-px h-3 bg-border flex-shrink-0" />
+          <span className="text-xs text-muted-foreground">
+            Reload: {lastReload.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          </span>
         </>
       )}
 
