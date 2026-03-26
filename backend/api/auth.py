@@ -166,8 +166,7 @@ async def discord_callback(
 
     _add_audit_log(db, "login_success", actor_id=discord_id, target=username, ip=ip)
 
-    stay = request.cookies.get("stay_logged_in") == "1"
-    refresh_max_age = 30 * 86400 if stay else settings.jwt_refresh_token_expire_days * 86400
+    refresh_max_age = settings.jwt_refresh_token_expire_days * 86400
 
     secure = _is_secure()
     response = RedirectResponse(f"{settings.frontend_url}/dashboard")

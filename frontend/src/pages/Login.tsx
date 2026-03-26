@@ -1,17 +1,9 @@
 import { useTranslation } from 'react-i18next'
-import { useUIStore } from '@/store/uiStore'
-import { Toggle } from '@/components/Toggle'
 
 export default function Login() {
   const { t } = useTranslation()
-  const { stayLoggedIn, setStayLoggedIn } = useUIStore()
 
   const handleLogin = () => {
-    if (stayLoggedIn) {
-      document.cookie = 'stay_logged_in=1; path=/; max-age=300'
-    } else {
-      document.cookie = 'stay_logged_in=0; path=/; max-age=300'
-    }
     window.location.href = '/auth/discord/login'
   }
 
@@ -29,13 +21,6 @@ export default function Login() {
           </svg>
           {t('auth.loginWithDiscord')}
         </button>
-        <div className="flex items-center justify-between mt-4 pt-4 border-t border-border">
-          <div>
-            <p className="text-sm text-foreground text-left">30 Tage angemeldet bleiben</p>
-            <p className="text-xs text-muted-foreground mt-0.5 text-left">Session auf 30 Tage verlängern</p>
-          </div>
-          <Toggle checked={stayLoggedIn} onChange={setStayLoggedIn} />
-        </div>
       </div>
     </div>
   )

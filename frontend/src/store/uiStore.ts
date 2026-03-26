@@ -13,7 +13,6 @@ interface UIState {
   sidebarWidth: number        // pixels, default 224 (w-56)
   dashboardPanels: PanelType[]
   pluginView: 'list' | 'grid'
-  stayLoggedIn: boolean
   devMode: boolean
   lastReload: Date | null
   setTheme: (t: Theme) => void
@@ -22,7 +21,6 @@ interface UIState {
   setSidebarWidth: (w: number) => void
   setDashboardPanels: (panels: PanelType[]) => void
   setPluginView: (v: 'list' | 'grid') => void
-  setStayLoggedIn: (v: boolean) => void
   setDevMode: (v: boolean) => void
   setLastReload: (d: Date) => void
 }
@@ -36,7 +34,6 @@ export const useUIStore = create<UIState>()(
       sidebarWidth: 224,
       dashboardPanels: ['servers', 'approvals', 'errors'],
       pluginView: 'list',
-      stayLoggedIn: false,
       devMode: false,
       lastReload: null as Date | null,
       setTheme: (theme) => set({ theme }),
@@ -45,7 +42,6 @@ export const useUIStore = create<UIState>()(
       setSidebarWidth: (sidebarWidth) => set({ sidebarWidth }),
       setDashboardPanels: (dashboardPanels) => set({ dashboardPanels }),
       setPluginView: (pluginView) => set({ pluginView }),
-      setStayLoggedIn: (stayLoggedIn) => set({ stayLoggedIn }),
       setDevMode: (devMode) => set({ devMode }),
       setLastReload: (lastReload: Date) => set({ lastReload }),
     }),
