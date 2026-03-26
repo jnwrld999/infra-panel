@@ -174,62 +174,100 @@ export default function Settings() {
         </section>
 
         {/* Changelog */}
-        <section className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-foreground mb-4">Versionsverlauf</h3>
-          <div className="space-y-4">
-            {[
-              {
-                version: '1.1.0',
-                date: '2026-03-25',
-                changes: [
-                  'Toggle-Darstellung in allen Themes korrigiert',
-                  'Discord Profilbild in der Sidebar',
-                  'Server-Status: automatische Prüfung bei Unknown',
-                  'Nutzer hinzufügen Funktion',
-                  'Anfragen per Discord-DM',
-                  'HomeServer Bots korrekt zugeordnet (Harryoe, CarstenBot, Asker)',
-                  'Sync: Job erstellen + Ausgabe-Fix',
-                  'Plugin-Fehler werden sauber angezeigt',
-                  '30-Tage-Option direkt beim Login',
-                  'Englische Übersetzungen erweitert',
-                ],
-              },
-              {
-                version: '1.0.0',
-                date: '2026-03-25',
-                changes: [
-                  'Discord OAuth2 Login mit 30-Tage-Session-Option',
-                  'Server-Verwaltung mit SSH (Live/Offline Status)',
-                  'Plugin-Übersicht für Minecraft und Discord-Bots',
-                  'Bot-Verwaltung mit Cog-Viewer (Java/Python/Node.js)',
-                  'Dashboard mit anpassbaren Panels',
-                  '8 Themes: Dark, Light, Monokai, Dracula, Nord, Solarized, Catppuccin, One Dark',
-                  'Nutzer-Verwaltung mit Rollen und Rechten',
-                  'Dev-Modus mit erweitertem Logging',
-                ],
-              },
-            ].map(entry => (
-              <div key={entry.version}>
-                <div className="flex items-center gap-3 mb-2">
-                  <span className="text-sm font-mono font-semibold text-foreground">v{entry.version}</span>
-                  <span className="text-xs text-muted-foreground">{entry.date}</span>
-                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">aktuell</span>
-                </div>
-                <ul className="space-y-1">
-                  {entry.changes.map((c, i) => (
-                    <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
-                      <span className="text-primary mt-0.5 flex-shrink-0">•</span>
-                      <span>{c}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </section>
+        <ChangelogSection />
 
       </div>
     </div>
+  )
+}
+
+// Changelog types and data
+interface ChangelogItem { type: 'feature' | 'fix' | 'improvement'; de: string; en: string }
+interface ChangelogEntry { version: string; date: string; changes: ChangelogItem[] }
+
+const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: '1.2.0', date: '2026-03-26',
+    changes: [
+      { type: 'feature', de: 'Bot-Zugriff pro Nutzer verwalten', en: 'Manage bot access per user' },
+      { type: 'feature', de: 'Token maskiert anzeigen mit Anzeigen/Kopieren', en: 'Token masked display with reveal/copy' },
+      { type: 'feature', de: 'Letzter Reload-Zeitpunkt in der TopBar', en: 'Last reload timestamp in TopBar' },
+      { type: 'improvement', de: 'Sidebar: Nutzerinfo unten, Ausloggen als volle Zeile', en: 'Sidebar: user info at bottom, logout as full row' },
+      { type: 'feature', de: 'Plugin-Anfragen direkt auf der Plugins-Seite', en: 'Plugin requests directly on Plugins page' },
+      { type: 'feature', de: 'DM-Vorschau beim Genehmigen/Ablehnen', en: 'DM preview when approving/denying' },
+      { type: 'improvement', de: 'Versionsverlauf zweisprachig mit Kategorien', en: 'Bilingual categorized version history' },
+      { type: 'fix', de: 'SSH-Fehlergrund bei Offline-Servern anzeigen', en: 'Show SSH error reason for offline servers' },
+    ],
+  },
+  {
+    version: '1.1.0', date: '2026-03-25',
+    changes: [
+      { type: 'fix', de: 'Toggle-Darstellung in allen Themes korrigiert', en: 'Fixed toggle positioning across all themes' },
+      { type: 'feature', de: 'Discord Profilbild in der Sidebar', en: 'Discord profile picture in Sidebar' },
+      { type: 'fix', de: 'Server-Status: automatische Prüfung bei Unknown', en: 'Server status: automatic check when unknown' },
+      { type: 'feature', de: 'Nutzer hinzufügen Funktion', en: 'Add user functionality' },
+      { type: 'feature', de: 'Anfragen per Discord-DM', en: 'Feature requests via Discord DM' },
+      { type: 'fix', de: 'HomeServer Bots korrekt zugeordnet', en: 'HomeServer bots correctly assigned' },
+      { type: 'fix', de: 'Sync: Job erstellen + Ausgabe-Fix', en: 'Sync: create job + output fix' },
+      { type: 'improvement', de: 'Plugin-Fehler werden sauber angezeigt', en: 'Plugin errors shown clearly' },
+      { type: 'feature', de: '30-Tage-Option direkt beim Login', en: '30-day option on the Login page' },
+      { type: 'improvement', de: 'Englische Übersetzungen erweitert', en: 'Expanded English translations' },
+    ],
+  },
+  {
+    version: '1.0.0', date: '2026-03-25',
+    changes: [
+      { type: 'feature', de: 'Erstveröffentlichung', en: 'Initial release' },
+      { type: 'feature', de: 'Discord OAuth2 Login', en: 'Discord OAuth2 login' },
+      { type: 'feature', de: 'Server- und Bot-Verwaltung', en: 'Server and bot management' },
+      { type: 'feature', de: 'Plugin-Verwaltung (Minecraft & Discord)', en: 'Plugin management (Minecraft & Discord)' },
+      { type: 'feature', de: 'Sync-Jobs', en: 'Sync jobs' },
+      { type: 'feature', de: 'Mehrsprachige UI (DE/EN)', en: 'Multi-language UI (DE/EN)' },
+      { type: 'feature', de: 'Dunkle und helle Themes', en: 'Dark and light themes' },
+    ],
+  },
+]
+
+const TYPE_BADGE: Record<string, { de: string; en: string; cls: string }> = {
+  feature:     { de: 'Neu',          en: 'New',         cls: 'bg-primary/15 text-primary' },
+  fix:         { de: 'Fix',          en: 'Fix',         cls: 'bg-destructive/15 text-destructive' },
+  improvement: { de: 'Verbesserung', en: 'Improvement', cls: 'bg-yellow-500/15 text-yellow-400' },
+}
+
+function ChangelogSection() {
+  const lang = i18n.language?.startsWith('en') ? 'en' : 'de'
+  return (
+    <section className="bg-card border border-border rounded-xl p-5">
+      <h3 className="font-semibold text-foreground mb-4">Versionsverlauf / Changelog</h3>
+      <div className="space-y-4">
+        {CHANGELOG.map((entry, idx) => (
+          <div key={entry.version} className="border border-border rounded-lg p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <span className="font-mono text-sm font-semibold text-foreground">v{entry.version}</span>
+              {idx === 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-medium">
+                  {lang === 'en' ? 'current' : 'aktuell'}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">{entry.date}</span>
+            </div>
+            <ul className="space-y-1.5">
+              {entry.changes.map((c, j) => {
+                const badge = TYPE_BADGE[c.type]
+                return (
+                  <li key={j} className="flex items-start gap-2 text-xs">
+                    <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium flex-shrink-0 mt-0.5 ${badge.cls}`}>
+                      {lang === 'en' ? badge.en : badge.de}
+                    </span>
+                    <span className="text-foreground">{lang === 'en' ? c.en : c.de}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 
