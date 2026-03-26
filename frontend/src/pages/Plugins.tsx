@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Eye, Power, X, Loader, List, LayoutGrid, AlertCircle } from 'lucide-react'
+import { Plus, RefreshCw, Eye, Power, X, Loader, List, LayoutGrid, AlertCircle, MessageSquare } from 'lucide-react'
 import client from '@/api/client'
 import { useUIStore } from '@/store/uiStore'
 
@@ -47,6 +47,30 @@ export default function Plugins() {
   const [addPathValue, setAddPathValue] = useState('')
 
   const { pluginView, setPluginView } = useUIStore()
+  const [pluginRequestModal, setPluginRequestModal] = useState(false)
+  const [requestForm, setRequestForm] = useState({ type: 'plugin_request', description: '' })
+  const [requestLoading, setRequestLoading] = useState(false)
+  const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
+
+  const submitPluginRequest = () => {
+    if (!requestForm.description.trim()) return
+    setRequestLoading(true)
+    setRequestResult(null)
+    client.post('/approvals/', {
+      type: requestForm.type,
+      payload: { description: requestForm.description.trim() },
+    })
+      .then(() => {
+        setRequestResult('success')
+        setTimeout(() => {
+          setPluginRequestModal(false)
+          setRequestResult(null)
+          setRequestForm({ type: 'plugin_request', description: '' })
+        }, 1500)
+      })
+      .catch(() => setRequestResult('error'))
+      .finally(() => setRequestLoading(false))
+  }
 
   useEffect(() => {
     client.get<Server[]>('/servers/').then((r) => {
@@ -175,6 +199,23 @@ export default function Plugins() {
             Alle laden
           </button>
         </div>
+      </div>
+
+      {/* Request Banner */}
+      <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-3 flex items-start justify-between gap-4 mb-4 flex-shrink-0">
+        <div className="flex items-start gap-3">
+          <MessageSquare size={16} className="text-primary mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Plugin- & Feature-Anfragen</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Hier kannst du Wünsche für neue Plugins oder Funktionen direkt einreichen.
+            </p>
+          </div>
+        </div>
+        <button onClick={() => setPluginRequestModal(true)}
+          className="flex-shrink-0 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary/90 transition-colors">
+          Anfrage senden
+        </button>
       </div>
 
       <div className="flex gap-6">
@@ -461,6 +502,56 @@ export default function Plugins() {
             <div className="flex gap-2 px-5 pb-4 justify-end">
               <button onClick={() => setAddPathModal(null)} className="px-3 py-2 text-sm rounded-lg border border-border text-muted-foreground hover:bg-muted">Abbrechen</button>
               <button onClick={() => applyPath(addPathModal.serverId, addPathValue)} className="px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:opacity-90">Übernehmen & Laden</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Plugin request modal */}
+      {pluginRequestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-base font-semibold mb-4">Anfrage senden</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Typ</label>
+                <select
+                  value={requestForm.type}
+                  onChange={e => setRequestForm(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="plugin_request">Plugin-Anfrage</option>
+                  <option value="feature_request">Feature-Anfrage</option>
+                  <option value="bug_report">Fehler melden</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Beschreibung</label>
+                <textarea
+                  value={requestForm.description}
+                  onChange={e => setRequestForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Beschreibe deine Anfrage ausführlich..."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              {requestResult === 'success' && <p className="text-sm text-green-400">Anfrage erfolgreich eingereicht.</p>}
+              {requestResult === 'error' && <p className="text-sm text-destructive">Fehler beim Einreichen der Anfrage.</p>}
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => { setPluginRequestModal(false); setRequestResult(null); setRequestForm({ type: 'plugin_request', description: '' }) }}
+                className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={submitPluginRequest}
+                disabled={requestLoading || !requestForm.description.trim()}
+                className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {requestLoading ? 'Sende...' : 'Anfrage senden'}
+              </button>
             </div>
           </div>
         </div>
