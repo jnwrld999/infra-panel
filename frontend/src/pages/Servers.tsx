@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
-import { Plus, Pencil } from 'lucide-react'
-import { StatusBadge } from '@/components/StatusBadge'
+import { Plus, Pencil, RotateCcw } from 'lucide-react'
 import { ServerModal } from '@/components/ServerModal'
 import client from '@/api/client'
+
+const STATUS_MAP: Record<string, { label: string; dotClass: string; textClass: string }> = {
+  online:  { label: 'Live',    dotClass: 'bg-green-400',                textClass: 'text-green-400'  },
+  offline: { label: 'Offline', dotClass: 'bg-red-400',                  textClass: 'text-red-400'    },
+  unknown: { label: 'Prüfe…',  dotClass: 'bg-yellow-400 animate-pulse', textClass: 'text-yellow-400' },
+}
 
 interface Server {
   id: number
@@ -28,7 +33,15 @@ export default function Servers() {
 
   useEffect(() => {
     fetchServers()
+    const interval = setInterval(fetchServers, 15000)
+    return () => clearInterval(interval)
   }, [])
+
+  const retryCheck = (id: number) => {
+    client.post(`/servers/${id}/health-check`)
+      .then(() => setTimeout(() => fetchServers(), 3000))
+      .catch(() => {})
+  }
 
   const testConnection = (id: number) => {
     setTestResults((prev) => ({ ...prev, [id]: 'testing...' }))
@@ -59,7 +72,25 @@ export default function Servers() {
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
                 <span className="font-semibold text-foreground text-lg">{server.name}</span>
-                <StatusBadge status={server.status} />
+                {(() => {
+                  const statusKey = server.status && STATUS_MAP[server.status] ? server.status : 'unknown'
+                  const s = STATUS_MAP[statusKey]
+                  return (
+                    <span className={`flex items-center gap-1.5 text-xs font-medium ${s.textClass}`}>
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${s.dotClass}`} />
+                      {s.label}
+                    </span>
+                  )
+                })()}
+                {(server.status === 'unknown' || server.status === 'offline') && (
+                  <button
+                    onClick={() => retryCheck(server.id)}
+                    title="Erneut prüfen"
+                    className="p-1 rounded text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                  >
+                    <RotateCcw size={12} />
+                  </button>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button

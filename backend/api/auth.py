@@ -126,6 +126,7 @@ async def discord_callback(
     discord_user_data = user_resp.json()
     discord_id = discord_user_data["id"]
     username = discord_user_data.get("username", "Unknown")
+    avatar_hash = discord_user_data.get("avatar")
 
     # Check/create DB user
     user = db.query(DiscordUser).filter(DiscordUser.discord_id == discord_id).first()
@@ -139,6 +140,7 @@ async def discord_callback(
                 role="owner",
                 verified=True,
                 active=True,
+                avatar=avatar_hash,
             )
             db.add(user)
             db.commit()
@@ -152,8 +154,9 @@ async def discord_callback(
             _add_audit_log(db, "login_denied_inactive_user", actor_id=discord_id,
                            target=username, ip=ip)
             return RedirectResponse(f"{settings.frontend_url}/no-access")
-        # Update username
+        # Update username and avatar
         user.username = username
+        user.avatar = avatar_hash
         user.last_action = datetime.now(timezone.utc)
         db.commit()
 
@@ -163,8 +166,27 @@ async def discord_callback(
 
     _add_audit_log(db, "login_success", actor_id=discord_id, target=username, ip=ip)
 
+    stay = request.cookies.get("stay_logged_in") == "1"
+    refresh_max_age = 30 * 86400 if stay else settings.jwt_refresh_token_expire_days * 86400
+
+    secure = _is_secure()
     response = RedirectResponse(f"{settings.frontend_url}/dashboard")
-    _set_auth_cookies(response, access_token, refresh_token)
+    response.set_cookie(
+        "access_token",
+        access_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=settings.jwt_access_token_expire_minutes * 60,
+    )
+    response.set_cookie(
+        "refresh_token",
+        refresh_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=refresh_max_age,
+    )
     return response
 
 
@@ -249,13 +271,18 @@ async def logout(
 @router.get("/me")
 async def get_me(current_user: DiscordUser = Depends(get_current_user)):
     """Return current authenticated user info."""
+    avatar_url = None
+    if current_user.avatar:
+        avatar_url = f"https://cdn.discordapp.com/avatars/{current_user.discord_id}/{current_user.avatar}.png?size=64"
     return {
         "discord_id": current_user.discord_id,
         "username": current_user.username,
         "role": current_user.role,
+        "is_owner": current_user.role == "owner",
         "verified": current_user.verified,
         "active": current_user.active,
         "language": current_user.language,
         "added_at": current_user.added_at,
         "last_action": current_user.last_action,
+        "avatar_url": avatar_url,
     }

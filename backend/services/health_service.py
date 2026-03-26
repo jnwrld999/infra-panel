@@ -11,7 +11,7 @@ async def check_server_health(server: Server, db: Session) -> str:
         result = await loop.run_in_executor(None, svc.test_connection)
         status = "online" if result["success"] else "offline"
     except Exception:
-        status = "error"
+        status = "offline"
     server.status = status
     server.last_checked = datetime.now(timezone.utc)
     db.add(AppLog(level="INFO", category="health", server_id=server.id, message=f"Health check: {status}"))
@@ -27,5 +27,5 @@ async def check_all_servers(db: Session) -> dict:
             status = await check_server_health(server, db)
             results[server.id] = status
         except Exception:
-            results[server.id] = "error"
+            results[server.id] = "offline"
     return results

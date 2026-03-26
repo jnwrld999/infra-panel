@@ -10,14 +10,14 @@ interface Server { id: number; name: string; host: string; port: number; status:
 interface Approval { id: number; type: string; submitted_by: string }
 interface LogEntry { id: number; timestamp: string; level: string; category: string; message: string }
 interface SyncJob { id: number; status: string; server_id: number; completed_at: string | null; type: string }
-interface Service { id: number; name: string; server_id: number; manager: string }
+interface DashboardUser { id: number; username: string; role: string; active: boolean }
 
 const PANEL_DEFINITIONS: Record<PanelType, { label: string; icon: string }> = {
   servers:   { label: 'Server Status',         icon: '🖥️'  },
   approvals: { label: 'Ausstehende Freigaben', icon: '📋'  },
   errors:    { label: 'Fehler (24h)',           icon: '⚠️'  },
   sync:      { label: 'Letzte Synchronisation', icon: '🔄'  },
-  services:  { label: 'Dienste Status',         icon: '⚙️'  },
+  users:     { label: 'Nutzer',                  icon: '👥'  },
 }
 
 // ---- Individual panel components ----
@@ -92,16 +92,19 @@ function SyncPanel({ jobs }: { jobs: SyncJob[] }) {
   )
 }
 
-function ServicesPanel({ services }: { services: Service[] }) {
+function UsersPanel({ users }: { users: DashboardUser[] }) {
   return (
-    <div className="space-y-1.5">
-      {services.slice(0, 8).map((svc) => (
-        <div key={svc.id} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
-          <span className="text-sm text-foreground truncate">{svc.name}</span>
-          <span className="text-xs text-muted-foreground">{svc.manager}</span>
+    <div>
+      <div className="text-3xl font-bold text-purple-400 mb-3">{users.length}</div>
+      {users.slice(0, 6).map((u) => (
+        <div key={u.id} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+          <span className="text-sm text-foreground truncate">{u.username}</span>
+          <span className={`text-xs font-medium ${u.active ? 'text-green-400' : 'text-red-400'}`}>
+            {u.active ? 'Aktiv' : 'Gesperrt'}
+          </span>
         </div>
       ))}
-      {services.length === 0 && <p className="text-sm text-muted-foreground">Keine Dienste</p>}
+      {users.length === 0 && <p className="text-sm text-muted-foreground">Keine Nutzer</p>}
     </div>
   )
 }
@@ -113,7 +116,7 @@ interface PanelData {
   approvals: Approval[]
   errors: LogEntry[]
   sync: SyncJob[]
-  services: Service[]
+  users: DashboardUser[]
 }
 
 function Panel({
@@ -137,7 +140,7 @@ function Panel({
       case 'approvals': return <ApprovalsPanel approvals={data.approvals} />
       case 'errors':    return <ErrorsPanel errors={data.errors} />
       case 'sync':      return <SyncPanel jobs={data.sync} />
-      case 'services':  return <ServicesPanel services={data.services} />
+      case 'users':     return <UsersPanel users={data.users} />
     }
   }
 
@@ -174,7 +177,7 @@ export default function Dashboard() {
   const { dashboardPanels, setDashboardPanels } = useUIStore()
   const [editMode, setEditMode] = useState(false)
   const [data, setData] = useState<PanelData>({
-    servers: [], approvals: [], errors: [], sync: [], services: [],
+    servers: [], approvals: [], errors: [], sync: [], users: [],
   })
 
   useEffect(() => {
@@ -182,7 +185,7 @@ export default function Dashboard() {
     client.get('/approvals/pending').then((r) => setData((d) => ({ ...d, approvals: r.data }))).catch(() => {})
     client.get('/logs/?level=ERROR&days=1&limit=20').then((r) => setData((d) => ({ ...d, errors: r.data }))).catch(() => {})
     client.get('/sync/').then((r) => setData((d) => ({ ...d, sync: r.data }))).catch(() => {})
-    client.get('/services/').then((r) => setData((d) => ({ ...d, services: r.data }))).catch(() => {})
+    client.get('/users/').then((r) => setData((d) => ({ ...d, users: r.data }))).catch(() => {})
   }, [])
 
   const removePanel = (idx: number) => {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  LayoutDashboard, Server, RefreshCw, Settings2, Puzzle, Bot,
+  LayoutDashboard, Server, RefreshCw, Puzzle, Bot,
   ClipboardCheck, Users, ScrollText, Settings,
   ChevronLeft, ChevronRight, LogOut,
 } from 'lucide-react'
@@ -35,7 +35,6 @@ export function Sidebar() {
     { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard size={18} /> },
     { to: '/servers', label: t('nav.servers'), icon: <Server size={18} /> },
     { to: '/sync', label: t('nav.sync'), icon: <RefreshCw size={18} /> },
-    { to: '/services', label: t('nav.services'), icon: <Settings2 size={18} /> },
     { to: '/plugins', label: t('nav.plugins'), icon: <Puzzle size={18} /> },
     { to: '/bots', label: t('nav.bots'), icon: <Bot size={18} /> },
     { to: '/approvals', label: t('nav.approvals'), icon: <ClipboardCheck size={18} />, adminOnly: true },
@@ -78,25 +77,17 @@ export function Sidebar() {
   return (
     <aside
       style={{ width }}
-      className={`relative min-h-screen flex flex-col bg-card border-r border-border flex-shrink-0 overflow-hidden ${!isResizing ? 'transition-[width] duration-200 ease-in-out' : ''}`}
+      className={`relative h-screen sticky top-0 flex flex-col bg-card border-r border-border flex-shrink-0 overflow-hidden ${!isResizing ? 'transition-[width] duration-200 ease-in-out' : ''}`}
     >
-      {/* Header */}
+      {/* Header — branding only */}
       <div className={`px-3 py-4 border-b border-border ${collapsed ? 'flex justify-center' : ''}`}>
         {collapsed ? (
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">IP</div>
         ) : (
-          <>
-            <div className="flex items-baseline gap-2">
-              <h1 className="text-base font-bold text-primary truncate">InfraPanel</h1>
-              {version && <span className="text-xs text-muted-foreground font-mono flex-shrink-0">v{version}</span>}
-            </div>
-            {user && (
-              <div className="mt-1 text-xs text-muted-foreground truncate">
-                {user.username}
-                {user.is_owner && <span className="ml-1 text-yellow-400">★</span>}
-              </div>
-            )}
-          </>
+          <div className="flex items-baseline gap-2">
+            <h1 className="text-base font-bold text-primary truncate">InfraPanel</h1>
+            {version && <span className="text-xs text-muted-foreground font-mono flex-shrink-0">v{version}</span>}
+          </div>
         )}
       </div>
 
@@ -138,21 +129,34 @@ export function Sidebar() {
         </button>
       </div>
 
-      {/* User / Logout */}
-      <div className={`px-2 py-2 border-t border-border flex items-center ${collapsed ? 'justify-center' : 'justify-between gap-2'}`}>
-        {!collapsed && (
-          <span className="text-xs text-muted-foreground truncate flex-1 min-w-0">
-            {user?.username ?? ''}
-          </span>
+      {/* User / Logout — full clickable row */}
+      <button
+        onClick={() => logout()}
+        title={t('auth.logout')}
+        className={`w-full px-3 py-3 border-t border-border flex items-center transition-colors group hover:bg-red-500/10 ${collapsed ? 'justify-center' : 'gap-3'}`}
+      >
+        {/* Avatar */}
+        {user?.avatar_url ? (
+          <img src={user.avatar_url} alt="" className="w-8 h-8 rounded-full flex-shrink-0 object-cover ring-1 ring-border group-hover:ring-red-400/50 transition-all" />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center flex-shrink-0 ring-1 ring-border group-hover:ring-red-400/50 transition-all">
+            <span className="text-xs font-medium text-muted-foreground">{user?.username?.slice(0, 2).toUpperCase() ?? '?'}</span>
+          </div>
         )}
-        <button
-          onClick={() => logout()}
-          title={t('auth.logout')}
-          className="flex-shrink-0 p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-        >
-          <LogOut size={16} />
-        </button>
-      </div>
+        {/* Name + logout icon */}
+        {!collapsed && (
+          <>
+            <div className="flex-1 min-w-0 text-left">
+              <p className="text-xs font-medium text-foreground truncate group-hover:text-red-400 transition-colors">
+                {user?.username ?? ''}
+                {user?.is_owner && <span className="ml-1 text-yellow-400">★</span>}
+              </p>
+              <p className="text-[10px] text-muted-foreground group-hover:text-red-400/70 transition-colors">{t('auth.logout')}</p>
+            </div>
+            <LogOut size={14} className="flex-shrink-0 text-muted-foreground group-hover:text-red-400 transition-colors" />
+          </>
+        )}
+      </button>
 
       {/* Resize handle (only when expanded) */}
       {!collapsed && (

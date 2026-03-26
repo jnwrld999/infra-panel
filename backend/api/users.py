@@ -6,12 +6,12 @@ from typing import Optional
 
 from backend.db.session import get_db
 from backend.db.models import DiscordUser, TokenBlocklist, AuditLog
-from backend.api.deps import require_owner, get_current_user
+from backend.api.deps import require_owner, require_admin, get_current_user
 from backend.config import get_settings
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
-VALID_ROLES = {"viewer", "operator", "admin", "owner"}
+VALID_ROLES = {"viewer", "operator", "admin", "moderator", "owner"}
 
 
 class UserCreate(BaseModel):
@@ -22,6 +22,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     role: Optional[str] = None
+    verified: Optional[bool] = None
     active: Optional[bool] = None
     language: Optional[str] = None
 
@@ -34,7 +35,9 @@ class UserOut(BaseModel):
     verified: bool
     active: bool
     language: str
+    added_by: Optional[str] = None
     added_at: Optional[datetime] = None
+    last_action: Optional[datetime] = None
 
     class Config:
         from_attributes = True
@@ -43,7 +46,7 @@ class UserOut(BaseModel):
 @router.get("/", response_model=list[UserOut])
 def list_users(
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(require_owner),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     return db.query(DiscordUser).all()
 
@@ -84,7 +87,48 @@ def add_user(
     return user
 
 
-@router.patch("/{discord_id}", response_model=UserOut)
+@router.patch("/{user_id}", response_model=UserOut)
+def update_user_by_id(
+    user_id: int,
+    body: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(require_admin),
+):
+    user = db.query(DiscordUser).filter(DiscordUser.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    settings = get_settings()
+    if user.discord_id == settings.owner_discord_id and current_user.discord_id != settings.owner_discord_id:
+        raise HTTPException(status_code=403, detail="Cannot modify the owner account")
+
+    if body.role is not None:
+        if body.role not in VALID_ROLES:
+            raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
+        user.role = body.role
+
+    if body.verified is not None:
+        user.verified = body.verified
+
+    if body.active is not None:
+        user.active = body.active
+
+    if body.language is not None:
+        user.language = body.language
+
+    audit = AuditLog(
+        actor_discord_id=current_user.discord_id,
+        action="update_user",
+        target=user.discord_id,
+        details=str(body.model_dump(exclude_none=True)),
+    )
+    db.add(audit)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.patch("/{discord_id}/by_discord_id", response_model=UserOut)
 def update_user(
     discord_id: str,
     body: UserUpdate,

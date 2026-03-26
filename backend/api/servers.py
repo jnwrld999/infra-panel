@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -8,8 +9,25 @@ from backend.api.deps import get_current_user, require_admin
 from backend.db.models import DiscordUser
 from backend.services.ssh_service import SSHService
 from backend.services.health_service import check_server_health
+from backend.db.session import SessionLocal
 
 router = APIRouter(prefix="/api/servers", tags=["servers"])
+
+
+def _health_bg(server_id: int) -> None:
+    """Run a health check in a background task with its own db session."""
+    import asyncio
+    db = SessionLocal()
+    try:
+        server = db.query(Server).filter(Server.id == server_id).first()
+        if server:
+            loop = asyncio.new_event_loop()
+            try:
+                loop.run_until_complete(check_server_health(server, db))
+            finally:
+                loop.close()
+    finally:
+        db.close()
 
 
 class ServerCreate(BaseModel):
@@ -48,10 +66,16 @@ def _server_to_dict(server: Server) -> dict:
 
 @router.get("/")
 def list_servers(
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: DiscordUser = Depends(get_current_user),
 ):
     servers = db.query(Server).all()
+    stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=2)
+    for s in servers:
+        lc = s.last_checked
+        if lc is None or s.status == "unknown" or (lc.tzinfo is None and lc < datetime.utcnow() - timedelta(minutes=2)) or (lc.tzinfo is not None and lc < stale_threshold):
+            background_tasks.add_task(_health_bg, s.id)
     return [_server_to_dict(s) for s in servers]
 
 
@@ -144,10 +168,5 @@ def trigger_health_check(
     server = db.query(Server).filter(Server.id == server_id).first()
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
-    import asyncio
-
-    async def _run():
-        await check_server_health(server, db)
-
-    background_tasks.add_task(asyncio.run, _run())
+    background_tasks.add_task(_health_bg, server_id)
     return {"message": "Health check triggered", "server_id": server_id}

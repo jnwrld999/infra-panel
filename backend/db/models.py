@@ -47,6 +47,7 @@ class DiscordUser(Base):
     added_at = Column(DateTime(timezone=True), default=utcnow)
     last_action = Column(DateTime(timezone=True), nullable=True)
     language = Column(String(16), default="en")
+    avatar = Column(String(64), nullable=True)
 
 
 class Bot(Base):

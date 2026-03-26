@@ -1,6 +1,9 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'path'
+import fs from 'fs'
 import { spawn, ChildProcess } from 'child_process'
+
+const PID_FILE = '/tmp/infra-panel.pid'
 
 let mainWindow: BrowserWindow | null = null
 let backendProcess: ChildProcess | null = null
@@ -23,11 +26,38 @@ function createWindow() {
   mainWindow.on('closed', () => { mainWindow = null })
 }
 
+ipcMain.on('app:restart', () => {
+  if (backendProcess) {
+    backendProcess.once('exit', () => {
+      app.relaunch()
+      app.exit(0)
+    })
+    backendProcess.kill()
+    // Fallback: if process doesn't exit within 3s, force quit
+    setTimeout(() => {
+      app.relaunch()
+      app.exit(0)
+    }, 3000)
+  } else {
+    app.relaunch()
+    app.exit(0)
+  }
+})
+
 app.whenReady().then(async () => {
+  // Write our PID so we can be killed without affecting other Electron apps (e.g. Discord)
+  fs.writeFileSync(PID_FILE, String(process.pid))
   startBackend()
   await new Promise(r => setTimeout(r, 2500))
   createWindow()
 })
 
-app.on('window-all-closed', () => { backendProcess?.kill(); app.quit() })
-app.on('before-quit', () => { backendProcess?.kill() })
+app.on('window-all-closed', () => {
+  backendProcess?.kill()
+  try { fs.unlinkSync(PID_FILE) } catch {}
+  app.quit()
+})
+app.on('before-quit', () => {
+  backendProcess?.kill()
+  try { fs.unlinkSync(PID_FILE) } catch {}
+})

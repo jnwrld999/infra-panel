@@ -7,6 +7,7 @@ interface AuthUser {
   role: string
   language: string
   is_owner: boolean
+  avatar_url?: string | null
 }
 
 interface AuthState {

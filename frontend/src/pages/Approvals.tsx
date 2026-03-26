@@ -19,7 +19,7 @@ export default function Approvals() {
   useEffect(() => { load() }, [])
 
   const decide = (id: number, action: 'approve' | 'deny') => {
-    client.post(`/approvals/${id}/${action}`)
+    client.patch(`/approvals/${id}`, { status: action === 'approve' ? 'approved' : 'denied' })
       .then(() => load())
       .catch(() => {})
   }

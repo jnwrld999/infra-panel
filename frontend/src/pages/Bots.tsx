@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Eye, X, Loader, ChevronDown, ChevronRight } from 'lucide-react'
+import { Plus, RefreshCw, Eye, X, Loader, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
 import client from '@/api/client'
@@ -39,6 +39,10 @@ export default function Bots() {
   const [addForm, setAddForm] = useState<BotCreate>({ name: '', server_id: '', token: '', type: 'discord', description: '' })
   const [addLoading, setAddLoading] = useState(false)
   const [addError, setAddError] = useState('')
+  const [requestModal, setRequestModal] = useState(false)
+  const [requestForm, setRequestForm] = useState({ type: 'feature_request', description: '' })
+  const [requestLoading, setRequestLoading] = useState(false)
+  const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
 
   useEffect(() => {
     client.get<Bot[]>('/bots/').then((r) => setBots(r.data)).catch(() => {})
@@ -73,6 +77,26 @@ export default function Bots() {
       .catch(() => setFileViewer({ serverId, path, content: '(Datei konnte nicht geladen werden)', name }))
   }
 
+  const submitRequest = () => {
+    if (!requestForm.description.trim()) return
+    setRequestLoading(true)
+    setRequestResult(null)
+    client.post('/approvals/', {
+      type: requestForm.type,
+      payload: { description: requestForm.description.trim() },
+    })
+      .then(() => {
+        setRequestResult('success')
+        setTimeout(() => {
+          setRequestModal(false)
+          setRequestResult(null)
+          setRequestForm({ type: 'feature_request', description: '' })
+        }, 1500)
+      })
+      .catch(() => setRequestResult('error'))
+      .finally(() => setRequestLoading(false))
+  }
+
   const submitAdd = () => {
     if (!addForm.name || !addForm.token || !addForm.server_id) {
       setAddError('Name, Server und Token sind erforderlich.')
@@ -105,6 +129,26 @@ export default function Bots() {
             <Plus size={14} /> Bot hinzufügen
           </button>
         )}
+      </div>
+
+      {/* Feature Request Banner */}
+      <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-3 flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-start gap-3">
+          <MessageSquare size={18} className="text-primary mt-0.5 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-foreground">Feature & Plugin Anfragen</p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Wünsche für neue Plugins, Features oder Änderungen können direkt hier eingereicht werden.
+              Du erhältst eine Discord-DM, sobald deine Anfrage bearbeitet wurde.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setRequestModal(true)}
+          className="flex-shrink-0 px-3 py-1.5 bg-primary text-primary-foreground text-xs rounded-md hover:bg-primary/90 transition-colors"
+        >
+          Anfrage senden
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -254,6 +298,60 @@ export default function Bots() {
                 className="flex items-center gap-2 px-4 py-2 text-sm rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50">
                 {addLoading && <Loader size={13} className="animate-spin" />}
                 Hinzufügen
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Request modal */}
+      {requestModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-card border border-border rounded-lg p-6 w-full max-w-md shadow-xl">
+            <h3 className="text-base font-semibold mb-4">Anfrage senden</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Typ</label>
+                <select
+                  value={requestForm.type}
+                  onChange={e => setRequestForm(prev => ({ ...prev, type: e.target.value }))}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                >
+                  <option value="feature_request">Feature-Anfrage</option>
+                  <option value="plugin_request">Plugin-Anfrage</option>
+                  <option value="bug_report">Fehler melden</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Beschreibung</label>
+                <textarea
+                  value={requestForm.description}
+                  onChange={e => setRequestForm(prev => ({ ...prev, description: e.target.value }))}
+                  placeholder="Beschreibe deine Anfrage ausführlich..."
+                  rows={4}
+                  className="w-full px-3 py-2 rounded-md border border-border bg-background text-sm resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+              {requestResult === 'success' && (
+                <p className="text-sm text-green-400">Anfrage erfolgreich eingereicht.</p>
+              )}
+              {requestResult === 'error' && (
+                <p className="text-sm text-destructive">Fehler beim Einreichen der Anfrage.</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 mt-6">
+              <button
+                onClick={() => { setRequestModal(false); setRequestResult(null); setRequestForm({ type: 'feature_request', description: '' }) }}
+                className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors"
+              >
+                Abbrechen
+              </button>
+              <button
+                onClick={submitRequest}
+                disabled={requestLoading || !requestForm.description.trim()}
+                className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {requestLoading ? 'Sende...' : 'Anfrage senden'}
               </button>
             </div>
           </div>

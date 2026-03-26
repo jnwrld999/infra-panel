@@ -3,7 +3,9 @@ import { useTranslation } from 'react-i18next'
 import i18n from '@/i18n'
 import client from '@/api/client'
 import { useUIStore } from '@/store/uiStore'
-import { Check } from 'lucide-react'
+import type { Theme } from '@/store/uiStore'
+import { Check, AlertTriangle } from 'lucide-react'
+import { Toggle } from '@/components/Toggle'
 
 interface AppInfo {
   name: string
@@ -12,13 +14,16 @@ interface AppInfo {
   environment: string
 }
 
-type Theme = 'dark' | 'light' | 'monokai'
-
 // Theme preview swatches — small visual color samples
 const THEME_PREVIEWS: Record<Theme, { bg: string; card: string; primary: string; label: string }> = {
-  dark: { bg: '#0b1120', card: '#0d1526', primary: '#3b82f6', label: 'Dark' },
-  light: { bg: '#f9fafb', card: '#ffffff', primary: '#3b82f6', label: 'Light' },
-  monokai: { bg: '#272822', card: '#2d2e2a', primary: '#a6e22e', label: 'Monokai' },
+  dark:       { bg: '#0b1120', card: '#0d1526', primary: '#3b82f6', label: 'Dark' },
+  light:      { bg: '#f9fafb', card: '#ffffff', primary: '#3b82f6', label: 'Light' },
+  monokai:    { bg: '#272822', card: '#2d2e2a', primary: '#a6e22e', label: 'Monokai' },
+  dracula:    { bg: '#282a36', card: '#21222c', primary: '#bd93f9', label: 'Dracula' },
+  nord:       { bg: '#2e3440', card: '#3b4252', primary: '#88c0d0', label: 'Nord' },
+  solarized:  { bg: '#002b36', card: '#073642', primary: '#268bd2', label: 'Solarized' },
+  catppuccin: { bg: '#1e1e2e', card: '#181825', primary: '#cba6f7', label: 'Catppuccin' },
+  onedark:    { bg: '#21252b', card: '#282c34', primary: '#61afef', label: 'One Dark' },
 }
 
 const FONT_SIZES = [
@@ -33,7 +38,7 @@ const themeEntries = Object.entries(THEME_PREVIEWS) as Array<
 
 export default function Settings() {
   const { t } = useTranslation()
-  const { theme, fontSize, setTheme, setFontSize } = useUIStore()
+  const { theme, fontSize, setTheme, setFontSize, stayLoggedIn, setStayLoggedIn, devMode, setDevMode } = useUIStore()
   const [info, setInfo] = useState<AppInfo | null>(null)
 
   useEffect(() => {
@@ -49,7 +54,7 @@ export default function Settings() {
         {/* Theme picker */}
         <section className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold text-foreground mb-4">Design / Theme</h3>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-4 gap-3">
             {themeEntries.map(([key, preview]) => (
               <button
                 key={key}
@@ -101,6 +106,41 @@ export default function Settings() {
           <LanguageSelector />
         </section>
 
+        {/* Security */}
+        <section className="bg-card border border-border rounded-xl p-5">
+          <h3 className="font-semibold text-foreground mb-4">Sicherheit</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-foreground">30 Tage angemeldet bleiben</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Session wird automatisch auf 30 Tage verlängert</p>
+            </div>
+            <Toggle checked={stayLoggedIn} onChange={setStayLoggedIn} />
+          </div>
+          {stayLoggedIn && (
+            <p className="mt-3 text-xs text-primary/80 flex items-center gap-1.5">
+              <Check size={11} /> Aktiv — nächste Anmeldung läuft 30 Tage
+            </p>
+          )}
+        </section>
+
+        {/* Developer */}
+        <section className="bg-card border border-border rounded-xl p-5">
+          <h3 className="font-semibold text-foreground mb-4">Entwickler</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-foreground">Dev-Modus</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Zusätzliche Logs: Button-Klicks, API-Calls, UI-Events</p>
+            </div>
+            <Toggle checked={devMode} onChange={setDevMode} color="bg-yellow-500" />
+          </div>
+          {devMode && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-yellow-400 bg-yellow-500/10 rounded-lg px-3 py-2">
+              <AlertTriangle size={12} />
+              Dev-Modus aktiv — alle Interaktionen werden protokolliert
+            </div>
+          )}
+        </section>
+
         {/* About */}
         <section className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold text-foreground mb-3">{t('settings.about')}</h3>
@@ -130,6 +170,61 @@ export default function Settings() {
               <span className="text-muted-foreground">{t('settings.buildDate')}</span>
               <span className="text-foreground font-mono text-xs">{info?.build_date ?? '…'}</span>
             </div>
+          </div>
+        </section>
+
+        {/* Changelog */}
+        <section className="bg-card border border-border rounded-xl p-5">
+          <h3 className="font-semibold text-foreground mb-4">Versionsverlauf</h3>
+          <div className="space-y-4">
+            {[
+              {
+                version: '1.1.0',
+                date: '2026-03-25',
+                changes: [
+                  'Toggle-Darstellung in allen Themes korrigiert',
+                  'Discord Profilbild in der Sidebar',
+                  'Server-Status: automatische Prüfung bei Unknown',
+                  'Nutzer hinzufügen Funktion',
+                  'Anfragen per Discord-DM',
+                  'HomeServer Bots korrekt zugeordnet (Harryoe, CarstenBot, Asker)',
+                  'Sync: Job erstellen + Ausgabe-Fix',
+                  'Plugin-Fehler werden sauber angezeigt',
+                  '30-Tage-Option direkt beim Login',
+                  'Englische Übersetzungen erweitert',
+                ],
+              },
+              {
+                version: '1.0.0',
+                date: '2026-03-25',
+                changes: [
+                  'Discord OAuth2 Login mit 30-Tage-Session-Option',
+                  'Server-Verwaltung mit SSH (Live/Offline Status)',
+                  'Plugin-Übersicht für Minecraft und Discord-Bots',
+                  'Bot-Verwaltung mit Cog-Viewer (Java/Python/Node.js)',
+                  'Dashboard mit anpassbaren Panels',
+                  '8 Themes: Dark, Light, Monokai, Dracula, Nord, Solarized, Catppuccin, One Dark',
+                  'Nutzer-Verwaltung mit Rollen und Rechten',
+                  'Dev-Modus mit erweitertem Logging',
+                ],
+              },
+            ].map(entry => (
+              <div key={entry.version}>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className="text-sm font-mono font-semibold text-foreground">v{entry.version}</span>
+                  <span className="text-xs text-muted-foreground">{entry.date}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">aktuell</span>
+                </div>
+                <ul className="space-y-1">
+                  {entry.changes.map((c, i) => (
+                    <li key={i} className="flex items-start gap-2 text-xs text-muted-foreground">
+                      <span className="text-primary mt-0.5 flex-shrink-0">•</span>
+                      <span>{c}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </section>
 

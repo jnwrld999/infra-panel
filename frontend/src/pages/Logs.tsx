@@ -1,115 +1,156 @@
-import { useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
+import { AlertTriangle, RefreshCw, Loader, Trash2 } from 'lucide-react'
 import client from '@/api/client'
+import { useUIStore } from '@/store/uiStore'
+import { getDevLogs, clearDevLogs, type DevLogEntry } from '@/lib/devLog'
+
+type LogCategory = 'system' | 'error' | 'sync' | 'audit' | 'dev'
+
+const CATEGORIES: { key: LogCategory; label: string; dotClass: string; textClass: string }[] = [
+  { key: 'system', label: 'System',  dotClass: 'bg-muted-foreground', textClass: 'text-muted-foreground' },
+  { key: 'error',  label: 'Fehler',  dotClass: 'bg-red-400',          textClass: 'text-red-400' },
+  { key: 'sync',   label: 'Sync',    dotClass: 'bg-blue-400',         textClass: 'text-blue-400' },
+  { key: 'audit',  label: 'Audit',   dotClass: 'bg-purple-400',       textClass: 'text-purple-400' },
+  { key: 'dev',    label: 'Dev',     dotClass: 'bg-yellow-400',       textClass: 'text-yellow-400' },
+]
 
 interface LogEntry {
   id: number
-  timestamp: string
   level: string
-  category: string
   message: string
-}
-
-const LEVEL_COLORS: Record<string, string> = {
-  ERROR: 'text-red-400',
-  WARNING: 'text-yellow-400',
-  INFO: 'text-blue-400',
-  DEBUG: 'text-gray-400',
+  created_at: string
+  category?: string
+  source?: string
 }
 
 export default function Logs() {
-  const [category, setCategory] = useState('')
-  const [level, setLevel] = useState('')
+  const { devMode } = useUIStore()
+  const [category, setCategory] = useState<LogCategory>('system')
   const [logs, setLogs] = useState<LogEntry[]>([])
+  const [devLogs, setDevLogs] = useState<DevLogEntry[]>([])
   const [loading, setLoading] = useState(false)
 
-  const load = () => {
+  const loadLogs = useCallback(() => {
+    if (category === 'dev') {
+      setDevLogs(getDevLogs().reverse())
+      return
+    }
     setLoading(true)
-    const params = new URLSearchParams()
-    if (category) params.set('category', category)
-    if (level) params.set('level', level)
-    params.set('limit', '100')
-    client.get(`/logs/?${params}`)
-      .then((r) => setLogs(r.data))
-      .catch(() => setLogs([]))
-      .finally(() => setLoading(false))
-  }
+    setLogs([])
+    const params: Record<string, string> = { limit: '100' }
+    if (category === 'error') params.level = 'ERROR'
+    else if (category === 'system') params.level = 'INFO'
+    else if (category === 'sync') params.category = 'sync'
+    else if (category === 'audit') params.category = 'audit'
 
-  const exportUrl = `/api/logs/export?${new URLSearchParams({ ...(category ? { category } : {}), ...(level ? { level } : {}) })}`
+    const query = new URLSearchParams(params).toString()
+    client.get<LogEntry[]>(`/logs/?${query}`).then(r => {
+      setLogs(r.data)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [category])
+
+  useEffect(() => { loadLogs() }, [loadLogs])
+
+  const cat = CATEGORIES.find(c => c.key === category)!
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold text-foreground mb-6">Logs</h2>
-      <div className="bg-card border border-border rounded-lg p-5 mb-4">
-        <div className="flex gap-3 items-end">
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Kategorie</label>
-            <input
-              type="text"
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
-              placeholder="z.B. auth"
-              className="bg-muted border border-border rounded-md px-3 py-2 text-foreground text-sm w-40"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-muted-foreground mb-1">Level</label>
-            <select
-              value={level}
-              onChange={(e) => setLevel(e.target.value)}
-              className="bg-muted border border-border rounded-md px-3 py-2 text-foreground text-sm"
-            >
-              <option value="">Alle</option>
-              <option value="ERROR">ERROR</option>
-              <option value="WARNING">WARNING</option>
-              <option value="INFO">INFO</option>
-              <option value="DEBUG">DEBUG</option>
-            </select>
-          </div>
-          <button
-            onClick={load}
-            disabled={loading}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:opacity-90 disabled:opacity-50"
-          >
-            {loading ? 'Lädt...' : 'Filtern'}
-          </button>
-          <a
-            href={exportUrl}
-            className="px-4 py-2 bg-muted border border-border rounded-md text-sm text-foreground hover:bg-border transition-colors"
-            download
-          >
-            CSV Export
-          </a>
-        </div>
-      </div>
-
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
-        <table className="w-full text-sm">
-          <thead className="bg-muted">
-            <tr className="text-muted-foreground text-left">
-              <th className="px-4 py-3 whitespace-nowrap">Zeitstempel</th>
-              <th className="px-4 py-3">Level</th>
-              <th className="px-4 py-3">Kategorie</th>
-              <th className="px-4 py-3">Nachricht</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logs.map((log) => (
-              <tr key={log.id} className="border-t border-border hover:bg-muted/30">
-                <td className="px-4 py-2 text-muted-foreground whitespace-nowrap font-mono text-xs">{new Date(log.timestamp).toLocaleString()}</td>
-                <td className={`px-4 py-2 font-bold text-xs ${LEVEL_COLORS[log.level] ?? 'text-gray-400'}`}>{log.level}</td>
-                <td className="px-4 py-2 text-muted-foreground text-xs">{log.category}</td>
-                <td className="px-4 py-2 text-foreground">{log.message}</td>
-              </tr>
-            ))}
-            {logs.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-muted-foreground">
-                  {loading ? 'Lädt...' : 'Keine Logs gefunden.'}
-                </td>
-              </tr>
+    <div className="flex gap-6">
+      {/* Left nav */}
+      <nav className="w-40 flex-shrink-0 space-y-1">
+        <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-2 mb-2">Kategorie</p>
+        {CATEGORIES.map(c => (
+          <button key={c.key} onClick={() => setCategory(c.key)}
+            className={`w-full text-left flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+              category === c.key ? 'bg-primary/10 text-primary font-medium' : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+            }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${c.dotClass}`} />
+            {c.label}
+            {c.key === 'dev' && !devMode && (
+              <span className="ml-auto text-xs text-muted-foreground">off</span>
             )}
-          </tbody>
-        </table>
+          </button>
+        ))}
+      </nav>
+
+      {/* Main */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-2xl font-bold text-foreground">
+            Logs — <span className={cat.textClass}>{cat.label}</span>
+          </h2>
+          <div className="flex items-center gap-2">
+            {category === 'dev' && devMode && (
+              <button onClick={() => { clearDevLogs(); setDevLogs([]) }}
+                className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs text-red-400 hover:bg-red-500/10 border border-red-500/20 transition-colors">
+                <Trash2 size={12} /> Leeren
+              </button>
+            )}
+            <button onClick={loadLogs} disabled={loading}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50">
+              {loading ? <Loader size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              Aktualisieren
+            </button>
+          </div>
+        </div>
+
+        {category === 'dev' && !devMode && (
+          <div className="flex items-center gap-2 text-sm text-yellow-400 bg-yellow-500/10 border border-yellow-500/20 rounded-xl px-5 py-4">
+            <AlertTriangle size={14} />
+            Dev-Modus ist deaktiviert. In den Einstellungen aktivieren.
+          </div>
+        )}
+
+        {category === 'dev' && devMode && (
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {devLogs.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">Keine Dev-Logs — interagiere mit der App</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {devLogs.map((e) => (
+                  <div key={e.t} className="px-4 py-2 flex items-start gap-3 hover:bg-muted/20 transition-colors">
+                    <span className="text-xs font-mono text-muted-foreground flex-shrink-0 pt-0.5">{e.t.slice(11, 23)}</span>
+                    <div className="min-w-0">
+                      <p className="text-sm text-yellow-400">{e.action}</p>
+                      {e.detail && <p className="text-xs text-muted-foreground truncate">{e.detail}</p>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {category !== 'dev' && (
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            {loading ? (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+                <Loader size={16} className="animate-spin inline mr-2" />Lädt…
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">Keine Logs</div>
+            ) : (
+              <div className="divide-y divide-border">
+                {logs.map(log => (
+                  <div key={log.id} className="px-4 py-2.5 flex items-start gap-3 hover:bg-muted/20 transition-colors">
+                    <span className="text-xs font-mono text-muted-foreground flex-shrink-0 pt-0.5">
+                      {log.created_at ? new Date(log.created_at).toLocaleTimeString('de-DE') : '—'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className={`text-sm ${log.level === 'ERROR' ? 'text-red-400' : 'text-foreground'}`}>{log.message}</p>
+                      {log.source && <p className="text-xs text-muted-foreground">{log.source}</p>}
+                    </div>
+                    <span className={`text-xs px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                      log.level === 'ERROR' ? 'bg-red-500/15 text-red-400' :
+                      log.level === 'WARN' ? 'bg-yellow-500/15 text-yellow-400' :
+                      'bg-muted text-muted-foreground'
+                    }`}>{log.level}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Clock, AlertTriangle, Loader, Circle, RotateCcw } from 'lucide-react'
+import { RefreshCw, Clock, AlertTriangle, Loader, RotateCcw } from 'lucide-react'
 import client from '@/api/client'
 
-interface AppInfo { version: string; build_date: string }
+interface AppInfo { version: string; build_date: string; latest_version?: string }
 interface SyncJob { id: number; status: string; completed_at: string | null }
 interface LogEntry { id: number }
 
@@ -11,6 +11,7 @@ const SEEN_VERSION_KEY = 'infra-panel-seen-version'
 export function TopBar() {
   const [info, setInfo] = useState<AppInfo | null>(null)
   const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [checking, setChecking] = useState(false)
   const [lastSync, setLastSync] = useState<string | null>(null)
   const [runningJobs, setRunningJobs] = useState(0)
   const [errorCount, setErrorCount] = useState(0)
@@ -41,6 +42,20 @@ export function TopBar() {
     }).catch(() => {})
   }, [])
 
+  const checkForUpdates = () => {
+    setChecking(true)
+    client.get<AppInfo>('/info').then(r => {
+      setInfo(r.data)
+      const seen = localStorage.getItem(SEEN_VERSION_KEY)
+      if (r.data.latest_version && r.data.latest_version !== r.data.version) {
+        setUpdateAvailable(true)
+      } else if (seen && seen !== r.data.version) {
+        setUpdateAvailable(true)
+      }
+      setChecking(false)
+    }).catch(() => setChecking(false))
+  }
+
   const formatSync = (ts: string) => {
     const d = new Date(ts)
     const now = new Date()
@@ -66,6 +81,14 @@ export function TopBar() {
           ) : (
             <span className="text-muted-foreground font-mono">v{info.version}</span>
           )}
+          <button
+            onClick={checkForUpdates}
+            disabled={checking}
+            title="Auf Updates prüfen"
+            className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            {checking ? <Loader size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+          </button>
         </div>
       )}
 
@@ -97,13 +120,14 @@ export function TopBar() {
       )}
 
       <div className="ml-auto flex items-center gap-3">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Circle size={8} className="fill-green-400 text-green-400" />
-          <span>Discord</span>
-        </div>
-        <div className="w-px h-3 bg-border flex-shrink-0" />
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => {
+            if (window.infraPanel?.restart) {
+              window.infraPanel.restart()
+            } else {
+              window.location.reload()
+            }
+          }}
           title="App neu starten"
           className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >

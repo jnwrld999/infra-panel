@@ -1,3 +1,4 @@
+import shlex
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from backend.db.session import get_db
@@ -24,7 +25,10 @@ def list_minecraft_plugins(
 ):
     server = _get_server_or_404(server_id, db)
     svc = PluginService(server)
-    return svc.list_minecraft_plugins(plugins_path)
+    try:
+        return svc.list_minecraft_plugins(plugins_path)
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))
 
 
 @router.post("/minecraft/{server_id}/disable")
@@ -74,12 +78,12 @@ def read_file_content(
     current_user: DiscordUser = Depends(get_current_user),
 ):
     """Read a file's content via SSH for code viewing. Max 100KB."""
-    if ".." in path:
+    if ".." in path or ";" in path or "|" in path or "`" in path or "$(" in path:
         raise HTTPException(status_code=400, detail="Invalid path")
     server = _get_server_or_404(server_id, db)
     from backend.services.ssh_service import SSHService
     with SSHService(server) as ssh:
-        result = ssh.run_command(f"head -c 102400 {path}")
+        result = ssh.run_command(f"head -c 102400 {shlex.quote(path)}")
     if not result.get("success"):
         raise HTTPException(status_code=404, detail="File not found or not readable")
     return {"content": result.get("stdout", ""), "path": path}
@@ -93,7 +97,7 @@ def list_files(
     current_user: DiscordUser = Depends(get_current_user),
 ):
     """List files in a directory via SSH."""
-    if ".." in path:
+    if ".." in path or ";" in path or "|" in path or "`" in path or "$(" in path:
         raise HTTPException(status_code=400, detail="Invalid path")
     server = _get_server_or_404(server_id, db)
     from backend.services.ssh_service import SSHService
@@ -105,6 +109,7 @@ def list_files(
 @router.get("/discord-bot/{bot_id}")
 def list_discord_bot_cogs(
     bot_id: int,
+    bot_path: str | None = None,
     db: Session = Depends(get_db),
     current_user: DiscordUser = Depends(get_current_user),
 ):
@@ -132,4 +137,8 @@ def list_discord_bot_cogs(
         raise HTTPException(status_code=404, detail="Server not found")
 
     svc = PluginService(server)
-    return svc.list_discord_bot_cogs(f"/opt/bots/{bot.name}")
+    resolved_path = bot_path if bot_path else f"/home/juice/MeinUbuntuServer/{bot.name}"
+    try:
+        return svc.list_discord_bot_cogs(resolved_path)
+    except RuntimeError as e:
+        raise HTTPException(status_code=502, detail=str(e))

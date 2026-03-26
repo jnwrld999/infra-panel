@@ -1,4 +1,5 @@
 """Public info/version endpoint."""
+import os
 from datetime import datetime, timezone
 from fastapi import APIRouter
 from backend.version import __version__
@@ -17,6 +18,7 @@ async def get_info():
     return {
         "name": "InfraPanel",
         "version": __version__,
+        "latest_version": os.getenv("LATEST_VERSION", __version__),
         "build_date": _BUILD_DATE,
         "environment": "production" if settings.frontend_url.startswith("https") else "development",
     }
