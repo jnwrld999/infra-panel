@@ -21,12 +21,21 @@ class BotCreate(BaseModel):
 def _bot_to_dict(bot: Bot, restricted: bool = False) -> dict:
     if restricted:
         return {"id": bot.id, "name": bot.name, "restricted": True}
+    server_info = None
+    if bot.server:
+        server_info = {
+            "name": bot.server.name,
+            "host": bot.server.host,
+            "status": bot.server.status,
+        }
     return {
         "id": bot.id,
         "name": bot.name,
         "server_id": bot.server_id,
+        "server": server_info,
         "type": bot.type,
         "status": bot.status,
+        "token_configured": bool(bot.token_encrypted),
         "description": bot.description,
         "created_at": bot.created_at.isoformat() if bot.created_at else None,
         "restricted": False,
@@ -53,6 +62,25 @@ def list_bots(
             else:
                 result.append(_bot_to_dict(bot, restricted=True))
     return result
+
+
+@router.get("/{bot_id}")
+def get_bot(
+    bot_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if current_user.role != "owner":
+        whitelisted = db.query(BotWhitelist).filter(
+            BotWhitelist.bot_id == bot_id,
+            BotWhitelist.discord_user_id == current_user.discord_id,
+        ).first()
+        if not whitelisted:
+            raise HTTPException(status_code=403, detail="Access denied")
+    return _bot_to_dict(bot)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)

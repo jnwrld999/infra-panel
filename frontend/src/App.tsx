@@ -15,6 +15,7 @@ import Users from '@/pages/Users'
 import Approvals from '@/pages/Approvals'
 import Logs from '@/pages/Logs'
 import Settings from '@/pages/Settings'
+import BotDashboard from '@/pages/BotDashboard'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore()
@@ -72,6 +73,7 @@ export default function App() {
         <Route path="/approvals" element={<ProtectedRoute><Approvals /></ProtectedRoute>} />
         <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/bot-dashboard" element={<ProtectedRoute><BotDashboard /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       {whatsNew && (
