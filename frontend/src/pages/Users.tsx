@@ -32,6 +32,9 @@ export default function Users() {
   const [addForm, setAddForm] = useState({ discord_id: '', role: 'viewer' })
   const [addLoading, setAddLoading] = useState(false)
   const [addError, setAddError] = useState('')
+  const [bots, setBots] = useState<{ id: number; name: string }[]>([])
+  const [userBotAccess, setUserBotAccess] = useState<Record<number, number[]>>({})
+  const [addFormBots, setAddFormBots] = useState<number[]>([])
 
   const load = () => {
     setLoading(true)
@@ -43,15 +46,36 @@ export default function Users() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    client.get<{ id: number; name: string; restricted: boolean }[]>('/bots/').then(r =>
+      setBots(r.data.map(b => ({ id: b.id, name: b.name })))
+    ).catch(() => {})
+  }, [])
+
+  const selectUser = (u: DiscordUser) => {
+    setSelected(u)
+    if (userBotAccess[u.id] === undefined) {
+      client.get<{ discord_id: string; bot_ids: number[] }>(`/users/${u.id}/bot-access`)
+        .then(r => setUserBotAccess(prev => ({ ...prev, [u.id]: r.data.bot_ids })))
+        .catch(() => setUserBotAccess(prev => ({ ...prev, [u.id]: [] })))
+    }
+  }
+
   const submitAddUser = () => {
     if (!addForm.discord_id.trim()) { setAddError('Discord ID ist erforderlich.'); return }
     setAddLoading(true)
     setAddError('')
     client.post('/users/', { discord_id: addForm.discord_id.trim(), role: addForm.role })
       .then(r => {
-        setUsers(prev => [...prev, r.data])
+        const newUser = r.data
+        setUsers(prev => [...prev, newUser])
+        // Grant bot access for selected bots
+        addFormBots.forEach(botId => {
+          client.post(`/bots/${botId}/whitelist/${addForm.discord_id.trim()}`).catch(() => {})
+        })
         setAddModal(false)
         setAddForm({ discord_id: '', role: 'viewer' })
+        setAddFormBots([])
       })
       .catch(e => setAddError(e?.response?.data?.detail || 'Fehler beim Hinzufügen.'))
       .finally(() => setAddLoading(false))
@@ -61,6 +85,19 @@ export default function Users() {
     client.patch(`/users/${id}`, patch).then(() => {
       setUsers(prev => prev.map(u => u.id === id ? { ...u, ...patch } : u))
       setSelected(prev => prev?.id === id ? { ...prev, ...patch } : prev)
+    }).catch(() => {})
+  }
+
+  const toggleBotAccess = (user: DiscordUser, botId: number, grant: boolean) => {
+    const endpoint = `/bots/${botId}/whitelist/${user.discord_id}`
+    const req = grant ? client.post(endpoint) : client.delete(endpoint)
+    req.then(() => {
+      setUserBotAccess(prev => ({
+        ...prev,
+        [user.id]: grant
+          ? [...(prev[user.id] ?? []), botId]
+          : (prev[user.id] ?? []).filter(id => id !== botId),
+      }))
     }).catch(() => {})
   }
 
@@ -97,7 +134,7 @@ export default function Users() {
               <tbody className="divide-y divide-border">
                 {users.map(u => (
                   <tr key={u.id}
-                    onClick={() => setSelected(u)}
+                    onClick={() => selectUser(u)}
                     className={`cursor-pointer hover:bg-muted/20 transition-colors ${selected?.id === u.id ? 'bg-primary/5' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
@@ -181,6 +218,26 @@ export default function Users() {
             </div>
           </div>
 
+          {bots.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Bot-Zugriff</label>
+              <div className="space-y-1">
+                {bots.map(bot => {
+                  const hasAccess = (userBotAccess[selected.id] ?? []).includes(bot.id)
+                  return (
+                    <div key={bot.id} className="flex items-center justify-between py-1">
+                      <span className="text-xs text-foreground">{bot.name}</span>
+                      <Toggle
+                        checked={hasAccess}
+                        onChange={(val) => toggleBotAccess(selected, bot.id, val)}
+                      />
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {selected.added_at && (
             <p className="text-xs text-muted-foreground border-t border-border pt-3">
               Hinzugefügt: {new Date(selected.added_at).toLocaleDateString('de-DE')}
@@ -217,11 +274,31 @@ export default function Users() {
                   <option value="admin">Admin</option>
                 </select>
               </div>
+              {bots.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Bot-Zugriff</label>
+                  <div className="space-y-1 max-h-40 overflow-y-auto border border-border rounded-md p-2">
+                    {bots.map(bot => (
+                      <label key={bot.id} className="flex items-center gap-2 cursor-pointer py-0.5">
+                        <input
+                          type="checkbox"
+                          checked={addFormBots.includes(bot.id)}
+                          onChange={e => setAddFormBots(prev =>
+                            e.target.checked ? [...prev, bot.id] : prev.filter(id => id !== bot.id)
+                          )}
+                          className="rounded"
+                        />
+                        <span className="text-xs">{bot.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
               {addError && <p className="text-sm text-destructive">{addError}</p>}
             </div>
             <div className="flex justify-end gap-2 mt-6">
               <button
-                onClick={() => { setAddModal(false); setAddError('') }}
+                onClick={() => { setAddModal(false); setAddError(''); setAddFormBots([]) }}
                 className="px-4 py-2 rounded-md border border-border text-sm hover:bg-muted transition-colors"
               >
                 Abbrechen

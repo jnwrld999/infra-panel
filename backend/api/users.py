@@ -172,6 +172,21 @@ def update_user(
     return user
 
 
+@router.get("/{user_id}/bot-access")
+def get_user_bot_access(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(require_admin),
+):
+    user = db.query(DiscordUser).filter(DiscordUser.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    from backend.db.models import BotWhitelist
+    entries = db.query(BotWhitelist).filter(BotWhitelist.discord_user_id == user.discord_id).all()
+    bot_ids = [e.bot_id for e in entries]
+    return {"discord_id": user.discord_id, "bot_ids": bot_ids}
+
+
 @router.delete("/{discord_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_user(
     discord_id: str,
