@@ -1,0 +1,19 @@
+{
+  "appId": "com.infrapanel.app",
+  "productName": "InfraPanel",
+  "directories": {
+    "output": "InfraPanel",
+    "app": "."
+  },
+  "files": [
+    "dist/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": [{ "target": "portable", "arch": ["x64"] }]
+  },
+  "portable": {
+    "artifactName": "InfraPanel-Setup.exe"
+  }
+}
