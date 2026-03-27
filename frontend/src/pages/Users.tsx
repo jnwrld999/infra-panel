@@ -60,6 +60,10 @@ export default function Users() {
   const selectUser = (u: DiscordUser) => {
     setSelected(u)
     setSelectedBotId('')
+    // Fetch full user detail to get assigned_bot
+    client.get<DiscordUser>(`/users/${u.id}`)
+      .then(r => setSelected(r.data))
+      .catch(() => {})
     if (userBotAccess[u.id] === undefined) {
       client.get<{ discord_id: string; bot_ids: number[] }>(`/users/${u.id}/bot-access`)
         .then(r => setUserBotAccess(prev => ({ ...prev, [u.id]: r.data.bot_ids })))
@@ -329,6 +333,7 @@ export default function Users() {
                   <option value="moderator">Moderator</option>
                   <option value="operator">Operator</option>
                   <option value="admin">Admin</option>
+                  <option value="bot_owner">Bot Owner</option>
                 </select>
               </div>
               {bots.length > 0 && (
