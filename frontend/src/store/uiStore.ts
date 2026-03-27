@@ -15,6 +15,12 @@ interface UIState {
   pluginView: 'list' | 'grid'
   devMode: boolean
   lastReload: Date | null
+  previewUser: {
+    discord_id: string
+    username: string
+    role: string
+    assigned_bot: { id: number; name: string } | null
+  } | null
   setTheme: (t: Theme) => void
   setFontSize: (s: FontSize) => void
   setSidebarCollapsed: (v: boolean) => void
@@ -23,6 +29,8 @@ interface UIState {
   setPluginView: (v: 'list' | 'grid') => void
   setDevMode: (v: boolean) => void
   setLastReload: (d: Date) => void
+  setPreviewUser: (user: { discord_id: string; username: string; role: string; assigned_bot: { id: number; name: string } | null }) => void
+  clearPreview: () => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -36,6 +44,7 @@ export const useUIStore = create<UIState>()(
       pluginView: 'list',
       devMode: false,
       lastReload: null as Date | null,
+      previewUser: null,
       setTheme: (theme) => set({ theme }),
       setFontSize: (fontSize) => set({ fontSize }),
       setSidebarCollapsed: (sidebarCollapsed) => set({ sidebarCollapsed }),
@@ -44,11 +53,13 @@ export const useUIStore = create<UIState>()(
       setPluginView: (pluginView) => set({ pluginView }),
       setDevMode: (devMode) => set({ devMode }),
       setLastReload: (lastReload: Date) => set({ lastReload }),
+      setPreviewUser: (user) => set({ previewUser: user }),
+      clearPreview: () => set({ previewUser: null }),
     }),
     {
       name: 'infra-panel-ui',
       partialize: (state: UIState) => {
-        const { lastReload, setLastReload, ...persistedState } = state
+        const { lastReload, setLastReload, previewUser, setPreviewUser, clearPreview, ...persistedState } = state
         return persistedState
       }
     }

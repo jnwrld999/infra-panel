@@ -8,6 +8,7 @@ interface AuthUser {
   language: string
   is_owner: boolean
   avatar_url?: string | null
+  assigned_bot?: { id: number; name: string } | null
 }
 
 interface AuthState {
