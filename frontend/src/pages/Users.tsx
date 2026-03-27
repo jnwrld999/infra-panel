@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { Check, X, ChevronRight, User, Plus } from 'lucide-react'
+import { Check, X, ChevronRight, User, Plus, Eye } from 'lucide-react'
 import client from '@/api/client'
 import { Toggle } from '@/components/Toggle'
+import { useUIStore } from '@/store/uiStore'
 
 interface DiscordUser {
   id: number
@@ -13,18 +14,21 @@ interface DiscordUser {
   added_by?: string
   added_at?: string
   last_action?: string
+  assigned_bot?: { id: number; name: string } | null
 }
 
-const ROLES = ['owner', 'admin', 'operator', 'moderator', 'viewer']
+const ROLES = ['owner', 'admin', 'operator', 'moderator', 'viewer', 'bot_owner']
 const ROLE_COLORS: Record<string, string> = {
   owner:     'bg-red-500/15 text-red-400',
   admin:     'bg-purple-500/15 text-purple-400',
   operator:  'bg-yellow-500/15 text-yellow-400',
   moderator: 'bg-blue-500/15 text-blue-400',
   viewer:    'bg-muted text-muted-foreground',
+  bot_owner: 'bg-green-500/15 text-green-400',
 }
 
 export default function Users() {
+  const setPreviewUser = useUIStore((s) => s.setPreviewUser)
   const [users, setUsers] = useState<DiscordUser[]>([])
   const [selected, setSelected] = useState<DiscordUser | null>(null)
   const [loading, setLoading] = useState(true)
@@ -35,6 +39,7 @@ export default function Users() {
   const [bots, setBots] = useState<{ id: number; name: string }[]>([])
   const [userBotAccess, setUserBotAccess] = useState<Record<number, number[]>>({})
   const [addFormBots, setAddFormBots] = useState<number[]>([])
+  const [selectedBotId, setSelectedBotId] = useState<number | ''>('')
 
   const load = () => {
     setLoading(true)
@@ -54,11 +59,22 @@ export default function Users() {
 
   const selectUser = (u: DiscordUser) => {
     setSelected(u)
+    setSelectedBotId('')
     if (userBotAccess[u.id] === undefined) {
       client.get<{ discord_id: string; bot_ids: number[] }>(`/users/${u.id}/bot-access`)
         .then(r => setUserBotAccess(prev => ({ ...prev, [u.id]: r.data.bot_ids })))
         .catch(() => setUserBotAccess(prev => ({ ...prev, [u.id]: [] })))
     }
+  }
+
+  const assignBotToOwner = (botId: number) => {
+    if (!selected) return
+    client.patch(`/bots/${botId}`, { owner_discord_id: selected.discord_id }).then(() => {
+      const bot = bots.find(b => b.id === botId) ?? null
+      setUsers(prev => prev.map(u => u.id === selected.id ? { ...u, assigned_bot: bot } : u))
+      setSelected(prev => prev ? { ...prev, assigned_bot: bot } : prev)
+      setSelectedBotId('')
+    }).catch(() => {})
   }
 
   const submitAddUser = () => {
@@ -204,6 +220,33 @@ export default function Users() {
                 </button>
               ))}
             </div>
+            {selected.role === 'bot_owner' && bots.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide">Bot zuweisen</label>
+                {selected.assigned_bot && (
+                  <p className="text-xs text-muted-foreground">Aktuell: <span className="text-foreground">{selected.assigned_bot.name}</span></p>
+                )}
+                <div className="flex gap-2">
+                  <select
+                    value={selectedBotId}
+                    onChange={e => setSelectedBotId(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="flex-1 px-2 py-1.5 rounded-md border border-border bg-background text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="">Bot wählen…</option>
+                    {bots.map(b => (
+                      <option key={b.id} value={b.id}>{b.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    onClick={() => selectedBotId !== '' && assignBotToOwner(selectedBotId as number)}
+                    disabled={selectedBotId === ''}
+                    className="px-2 py-1.5 rounded-md bg-primary text-primary-foreground text-xs hover:bg-primary/90 disabled:opacity-40 transition-colors"
+                  >
+                    <Check size={12} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -217,6 +260,20 @@ export default function Users() {
               <Toggle checked={selected.active} onChange={(val) => updateUser(selected.id, { active: val })} />
             </div>
           </div>
+
+          {selected?.role === 'bot_owner' && selected?.assigned_bot && (
+            <button
+              onClick={() => setPreviewUser({
+                discord_id: selected.discord_id,
+                username: selected.username,
+                role: 'bot_owner',
+                assigned_bot: selected.assigned_bot!,
+              })}
+              className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary text-sm rounded-md hover:bg-primary/20 transition-colors"
+            >
+              <Eye size={14} /> Ansicht anzeigen
+            </button>
+          )}
 
           {bots.length > 0 && (
             <div>
