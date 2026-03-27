@@ -104,12 +104,25 @@ def update_bot(
     bot_id: int,
     data: BotUpdate,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(require_admin),
+    current_user: DiscordUser = Depends(get_current_user),
 ):
     bot = db.query(Bot).filter(Bot.id == bot_id).first()
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
+
+    is_admin_or_owner = current_user.role in ("admin", "owner")
+    is_bot_owner_of_this = (
+        current_user.role == "bot_owner"
+        and bot.owner_discord_id == current_user.discord_id
+    )
+    if not is_admin_or_owner and not is_bot_owner_of_this:
+        raise HTTPException(status_code=403, detail="Access denied")
+
     update_data = data.model_dump(exclude_unset=True)
+    # bot_owner may only update name
+    if is_bot_owner_of_this and not is_admin_or_owner:
+        update_data = {k: v for k, v in update_data.items() if k == "name"}
+
     if "token" in update_data:
         bot.token_encrypted = encrypt(update_data.pop("token"))
     for field, value in update_data.items():
@@ -149,14 +162,19 @@ def get_bot_token(
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
 
-    # Owner always has access; others need to be whitelisted
+    # Owner always has access; bot_owner can access their own bot; others need to be whitelisted
     if current_user.role != "owner":
-        whitelisted = db.query(BotWhitelist).filter(
-            BotWhitelist.bot_id == bot_id,
-            BotWhitelist.discord_user_id == current_user.discord_id,
-        ).first()
-        if not whitelisted:
-            raise HTTPException(status_code=403, detail="Access denied")
+        is_bot_owner_of_this = (
+            current_user.role == "bot_owner"
+            and bot.owner_discord_id == current_user.discord_id
+        )
+        if not is_bot_owner_of_this:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
 
     if not bot.token_encrypted:
         raise HTTPException(status_code=404, detail="No token stored")
