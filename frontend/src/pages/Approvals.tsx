@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import client from '@/api/client'
 import { EmbedPreview } from '@/components/EmbedPreview'
+import { useUserName } from '@/hooks/useUserName'
 
 interface Approval {
   id: number
@@ -9,6 +10,52 @@ interface Approval {
   payload?: { description?: string; embed?: Record<string, unknown> }
   description?: string
   created_at: string
+}
+
+interface ApprovalItemProps {
+  approval: Approval
+  onOpenReview: (id: number, action: 'approve' | 'deny', submitter: string) => void
+}
+
+function ApprovalItem({ approval, onOpenReview }: ApprovalItemProps) {
+  const submitterName = useUserName(approval.submitted_by)
+
+  return (
+    <div className="bg-card border border-border rounded-lg p-5">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-semibold text-foreground">{approval.type}</span>
+            <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">pending</span>
+          </div>
+          <div className="text-muted-foreground text-sm mb-1">Von: <span className="text-foreground" title={approval.submitted_by}>{submitterName}</span></div>
+          {(approval.payload?.description || approval.description) && (
+            <p className="text-muted-foreground text-sm">{approval.payload?.description || approval.description}</p>
+          )}
+          {approval.payload?.embed && (
+            <div className="mt-2">
+              <EmbedPreview embed={approval.payload.embed as Parameters<typeof EmbedPreview>[0]['embed']} />
+            </div>
+          )}
+          <div className="text-muted-foreground text-xs mt-1">{new Date(approval.created_at).toLocaleString()}</div>
+        </div>
+        <div className="flex gap-2 ml-4">
+          <button
+            onClick={() => onOpenReview(approval.id, 'approve', approval.submitted_by)}
+            className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
+          >
+            Genehmigen
+          </button>
+          <button
+            onClick={() => onOpenReview(approval.id, 'deny', approval.submitted_by)}
+            className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
+          >
+            Ablehnen
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function Approvals() {
@@ -43,40 +90,7 @@ export default function Approvals() {
       <h2 className="text-2xl font-bold text-foreground mb-6">Freigaben</h2>
       <div className="space-y-4">
         {approvals.map((approval) => (
-          <div key={approval.id} className="bg-card border border-border rounded-lg p-5">
-            <div className="flex items-start justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="font-semibold text-foreground">{approval.type}</span>
-                  <span className="px-2 py-0.5 bg-blue-500/20 text-blue-300 rounded text-xs">pending</span>
-                </div>
-                <div className="text-muted-foreground text-sm mb-1">Von: <span className="text-foreground">{approval.submitted_by}</span></div>
-                {(approval.payload?.description || approval.description) && (
-                  <p className="text-muted-foreground text-sm">{approval.payload?.description || approval.description}</p>
-                )}
-                {approval.payload?.embed && (
-                  <div className="mt-2">
-                    <EmbedPreview embed={approval.payload.embed as Parameters<typeof EmbedPreview>[0]['embed']} />
-                  </div>
-                )}
-                <div className="text-muted-foreground text-xs mt-1">{new Date(approval.created_at).toLocaleString()}</div>
-              </div>
-              <div className="flex gap-2 ml-4">
-                <button
-                  onClick={() => openReview(approval.id, 'approve', approval.submitted_by)}
-                  className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-md transition-colors"
-                >
-                  Genehmigen
-                </button>
-                <button
-                  onClick={() => openReview(approval.id, 'deny', approval.submitted_by)}
-                  className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded-md transition-colors"
-                >
-                  Ablehnen
-                </button>
-              </div>
-            </div>
-          </div>
+          <ApprovalItem key={approval.id} approval={approval} onOpenReview={openReview} />
         ))}
         {approvals.length === 0 && <p className="text-muted-foreground">Keine ausstehenden Freigaben.</p>}
       </div>

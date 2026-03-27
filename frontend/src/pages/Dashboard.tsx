@@ -4,6 +4,7 @@ import { Settings2, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 import { StatusBadge } from '@/components/StatusBadge'
 import client from '@/api/client'
 import { useUIStore, PanelType } from '@/store/uiStore'
+import { useUserName } from '@/hooks/useUserName'
 
 // ---- Data types ----
 interface Server { id: number; name: string; host: string; port: number; status: string; tags: string[] }
@@ -40,14 +41,21 @@ function ServersPanel({ servers }: { servers: Server[] }) {
   )
 }
 
+function ApprovalItemDisplay({ approval }: { approval: Approval }) {
+  const submitterName = useUserName(approval.submitted_by)
+  return (
+    <div className="text-sm text-muted-foreground py-1 border-b border-border last:border-0">
+      {approval.type} — <span title={approval.submitted_by}>{submitterName}</span>
+    </div>
+  )
+}
+
 function ApprovalsPanel({ approvals }: { approvals: Approval[] }) {
   return (
     <div>
       <div className="text-3xl font-bold text-blue-400 mb-3">{approvals.length}</div>
       {approvals.slice(0, 5).map((a) => (
-        <div key={a.id} className="text-sm text-muted-foreground py-1 border-b border-border last:border-0">
-          {a.type} — {a.submitted_by}
-        </div>
+        <ApprovalItemDisplay key={a.id} approval={a} />
       ))}
       {approvals.length === 0 && <p className="text-sm text-muted-foreground">Keine ausstehenden Freigaben</p>}
     </div>
