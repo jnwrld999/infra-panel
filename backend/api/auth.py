@@ -6,7 +6,7 @@ import httpx
 
 from backend.config import get_settings
 from backend.db.session import get_db
-from backend.db.models import DiscordUser, AuditLog, TokenBlocklist
+from backend.db.models import DiscordUser, AuditLog, TokenBlocklist, Bot
 from backend.core.security import (
     create_access_token,
     create_refresh_token,
@@ -268,11 +268,21 @@ async def logout(
 
 
 @router.get("/me")
-async def get_me(current_user: DiscordUser = Depends(get_current_user)):
+async def get_me(
+    current_user: DiscordUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """Return current authenticated user info."""
     avatar_url = None
     if current_user.avatar:
         avatar_url = f"https://cdn.discordapp.com/avatars/{current_user.discord_id}/{current_user.avatar}.png?size=64"
+
+    assigned_bot = None
+    if current_user.role == "bot_owner":
+        bot = db.query(Bot).filter(Bot.owner_discord_id == current_user.discord_id).first()
+        if bot:
+            assigned_bot = {"id": bot.id, "name": bot.name}
+
     return {
         "discord_id": current_user.discord_id,
         "username": current_user.username,
@@ -284,4 +294,5 @@ async def get_me(current_user: DiscordUser = Depends(get_current_user)):
         "added_at": current_user.added_at,
         "last_action": current_user.last_action,
         "avatar_url": avatar_url,
+        "assigned_bot": assigned_bot,
     }

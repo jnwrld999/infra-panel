@@ -5,13 +5,13 @@ from sqlalchemy.orm import Session
 from typing import Optional
 
 from backend.db.session import get_db
-from backend.db.models import DiscordUser, TokenBlocklist, AuditLog
+from backend.db.models import DiscordUser, TokenBlocklist, AuditLog, Bot
 from backend.api.deps import require_owner, require_admin, get_current_user
 from backend.config import get_settings
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
-VALID_ROLES = {"viewer", "operator", "admin", "moderator", "owner"}
+VALID_ROLES = {"viewer", "operator", "admin", "moderator", "owner", "bot_owner"}
 
 
 class UserCreate(BaseModel):
@@ -185,6 +185,38 @@ def get_user_bot_access(
     entries = db.query(BotWhitelist).filter(BotWhitelist.discord_user_id == user.discord_id).all()
     bot_ids = [e.bot_id for e in entries]
     return {"discord_id": user.discord_id, "bot_ids": bot_ids}
+
+
+@router.get("/{user_id}")
+def get_user_by_id(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(require_admin),
+):
+    user = db.query(DiscordUser).filter(DiscordUser.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user_dict = {
+        "id": user.id,
+        "discord_id": user.discord_id,
+        "username": user.username,
+        "role": user.role,
+        "verified": user.verified,
+        "active": user.active,
+        "language": user.language,
+        "added_by": user.added_by,
+        "added_at": user.added_at,
+        "last_action": user.last_action,
+        "assigned_bot": None,
+    }
+
+    if user.role == "bot_owner":
+        bot = db.query(Bot).filter(Bot.owner_discord_id == user.discord_id).first()
+        if bot:
+            user_dict["assigned_bot"] = {"id": bot.id, "name": bot.name}
+
+    return user_dict
 
 
 @router.delete("/{discord_id}", status_code=status.HTTP_204_NO_CONTENT)

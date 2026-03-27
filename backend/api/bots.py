@@ -18,6 +18,15 @@ class BotCreate(BaseModel):
     description: Optional[str] = None
 
 
+class BotUpdate(BaseModel):
+    name: Optional[str] = None
+    server_id: Optional[int] = None
+    token: Optional[str] = None
+    type: Optional[str] = None
+    description: Optional[str] = None
+    owner_discord_id: Optional[str] = None
+
+
 def _bot_to_dict(bot: Bot, restricted: bool = False) -> dict:
     if restricted:
         return {"id": bot.id, "name": bot.name, "restricted": True}
@@ -37,6 +46,7 @@ def _bot_to_dict(bot: Bot, restricted: bool = False) -> dict:
         "status": bot.status,
         "token_configured": bool(bot.token_encrypted),
         "description": bot.description,
+        "owner_discord_id": bot.owner_discord_id,
         "created_at": bot.created_at.isoformat() if bot.created_at else None,
         "restricted": False,
     }
@@ -48,6 +58,12 @@ def list_bots(
     current_user: DiscordUser = Depends(get_current_user),
 ):
     bots = db.query(Bot).all()
+
+    # Filter for bot_owner role: only show bots where owner_discord_id matches
+    if current_user.role == "bot_owner":
+        bots = [b for b in bots if b.owner_discord_id == current_user.discord_id]
+        return [_bot_to_dict(b) for b in bots]
+
     result = []
     for bot in bots:
         if current_user.role == "owner":
