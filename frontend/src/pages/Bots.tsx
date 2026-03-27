@@ -65,14 +65,20 @@ export default function Bots() {
   }, [])
 
   const showToken = (id: number) => {
+    if (tokens[id]) {
+      setTokenRevealed(prev => ({ ...prev, [id]: !prev[id] }))
+      return
+    }
     client.get(`/bots/${id}/token`)
-      .then((r) => setTokens((prev) => ({ ...prev, [id]: r.data.token })))
+      .then((r) => {
+        setTokens((prev) => ({ ...prev, [id]: r.data.token }))
+        setTokenRevealed(prev => ({ ...prev, [id]: true }))
+      })
       .catch(() => {})
   }
 
   const revealToken = (id: number) => {
-    setTokenRevealed(prev => ({ ...prev, [id]: true }))
-    setTimeout(() => setTokenRevealed(prev => ({ ...prev, [id]: false })), 10000)
+    setTokenRevealed(prev => ({ ...prev, [id]: !prev[id] }))
   }
 
   const copyToken = (id: number) => {
@@ -230,7 +236,7 @@ export default function Bots() {
                     ) : (
                       <>
                         <span className="font-semibold text-foreground">{bot.name}</span>
-                        {!bot.restricted && (user?.is_owner || user?.role === 'bot_owner') && (
+                        {!bot.restricted && (user?.is_owner || user?.role === 'owner' || user?.role === 'admin' || user?.role === 'bot_owner') && (
                           <button onClick={() => startEditName(bot)} title="Name bearbeiten"
                             className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                             <Pencil size={11} />
@@ -249,7 +255,7 @@ export default function Bots() {
                   <span className="text-yellow-400 text-sm font-medium">Bot nicht verfügbar</span>
                 ) : (
                   <>
-                    {(user?.is_owner || user?.role === 'bot_owner') && (
+                    {(user?.is_owner || user?.role === 'owner' || user?.role === 'admin' || user?.role === 'bot_owner') && (
                       <button onClick={() => showToken(bot.id)}
                         className="px-3 py-1.5 text-xs bg-muted border border-border rounded-md text-foreground hover:bg-border transition-colors">
                         Token anzeigen
