@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Check, X, ChevronRight, User, Plus, Eye } from 'lucide-react'
 import client from '@/api/client'
 import { Toggle } from '@/components/Toggle'
@@ -28,6 +29,7 @@ const ROLE_COLORS: Record<string, string> = {
 }
 
 export default function Users() {
+  const navigate = useNavigate()
   const setPreviewUser = useUIStore((s) => s.setPreviewUser)
   const [users, setUsers] = useState<DiscordUser[]>([])
   const [selected, setSelected] = useState<DiscordUser | null>(null)
@@ -267,12 +269,15 @@ export default function Users() {
 
           {selected?.role === 'bot_owner' && selected?.assigned_bot && (
             <button
-              onClick={() => setPreviewUser({
-                discord_id: selected.discord_id,
-                username: selected.username,
-                role: 'bot_owner',
-                assigned_bot: selected.assigned_bot!,
-              })}
+              onClick={() => {
+                setPreviewUser({
+                  discord_id: selected.discord_id,
+                  username: selected.username,
+                  role: 'bot_owner',
+                  assigned_bot: selected.assigned_bot!,
+                })
+                navigate('/bot-dashboard')
+              }}
               className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 text-primary text-sm rounded-md hover:bg-primary/20 transition-colors"
             >
               <Eye size={14} /> Ansicht anzeigen

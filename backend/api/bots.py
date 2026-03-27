@@ -99,6 +99,26 @@ def get_bot(
     return _bot_to_dict(bot)
 
 
+@router.patch("/{bot_id}")
+def update_bot(
+    bot_id: int,
+    data: BotUpdate,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(require_admin),
+):
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    update_data = data.model_dump(exclude_unset=True)
+    if "token" in update_data:
+        bot.token_encrypted = encrypt(update_data.pop("token"))
+    for field, value in update_data.items():
+        setattr(bot, field, value)
+    db.commit()
+    db.refresh(bot)
+    return _bot_to_dict(bot)
+
+
 @router.post("/", status_code=status.HTTP_201_CREATED)
 def create_bot(
     data: BotCreate,
