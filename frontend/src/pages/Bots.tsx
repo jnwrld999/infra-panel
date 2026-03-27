@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Eye, EyeOff, Copy, X, Loader, ChevronDown, ChevronRight, MessageSquare } from 'lucide-react'
+import { Plus, RefreshCw, Eye, EyeOff, Copy, X, Loader, ChevronDown, ChevronRight, MessageSquare, Pencil, Check } from 'lucide-react'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
 import client from '@/api/client'
@@ -45,6 +45,8 @@ export default function Bots() {
   const [requestForm, setRequestForm] = useState({ type: 'feature_request', description: '' })
   const [requestLoading, setRequestLoading] = useState(false)
   const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
+  const [editingName, setEditingName] = useState<Record<number, string | null>>({})
+  const [nameSaving, setNameSaving] = useState<Record<number, boolean>>({})
 
   useEffect(() => {
     client.get<Bot[]>('/bots/').then((r) => {
@@ -109,6 +111,27 @@ export default function Bots() {
       })
       .catch(() => setRequestResult('error'))
       .finally(() => setRequestLoading(false))
+  }
+
+  const startEditName = (bot: Bot) => {
+    setEditingName((prev) => ({ ...prev, [bot.id]: bot.name }))
+  }
+
+  const cancelEditName = (id: number) => {
+    setEditingName((prev) => { const n = { ...prev }; delete n[id]; return n })
+  }
+
+  const saveEditName = (id: number) => {
+    const name = editingName[id]?.trim()
+    if (!name) return
+    setNameSaving((prev) => ({ ...prev, [id]: true }))
+    client.patch(`/bots/${id}`, { name })
+      .then((r) => {
+        setBots((prev) => prev.map((b) => b.id === id ? { ...b, name: r.data.name } : b))
+        cancelEditName(id)
+      })
+      .catch(() => {})
+      .finally(() => setNameSaving((prev) => { const n = { ...prev }; delete n[id]; return n }))
   }
 
   const submitAdd = () => {
@@ -178,9 +201,37 @@ export default function Bots() {
                 </button>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold text-foreground">{bot.name}</span>
-                    {!bot.restricted && bot.status && <StatusBadge status={bot.status} />}
-                    {bot.type && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{bot.type}</span>}
+                    {editingName[bot.id] !== undefined ? (
+                      <>
+                        <input
+                          autoFocus
+                          value={editingName[bot.id] ?? ''}
+                          onChange={(e) => setEditingName((prev) => ({ ...prev, [bot.id]: e.target.value }))}
+                          onKeyDown={(e) => { if (e.key === 'Enter') saveEditName(bot.id); if (e.key === 'Escape') cancelEditName(bot.id) }}
+                          className="font-semibold bg-background border border-primary/50 rounded px-2 py-0.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/40 w-36"
+                        />
+                        <button onClick={() => saveEditName(bot.id)} disabled={nameSaving[bot.id]}
+                          className="p-1 rounded text-green-400 hover:bg-green-400/10 transition-colors disabled:opacity-50">
+                          <Check size={13} />
+                        </button>
+                        <button onClick={() => cancelEditName(bot.id)}
+                          className="p-1 rounded text-muted-foreground hover:bg-muted transition-colors">
+                          <X size={13} />
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-semibold text-foreground">{bot.name}</span>
+                        {!bot.restricted && (user?.is_owner || user?.role === 'bot_owner') && (
+                          <button onClick={() => startEditName(bot)} title="Name bearbeiten"
+                            className="p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                            <Pencil size={11} />
+                          </button>
+                        )}
+                        {!bot.restricted && bot.status && <StatusBadge status={bot.status} />}
+                        {bot.type && <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{bot.type}</span>}
+                      </>
+                    )}
                   </div>
                   {bot.description && <p className="text-xs text-muted-foreground mt-0.5">{bot.description}</p>}
                 </div>
@@ -190,7 +241,7 @@ export default function Bots() {
                   <span className="text-yellow-400 text-sm font-medium">Bot nicht verfügbar</span>
                 ) : (
                   <>
-                    {user?.is_owner && (
+                    {(user?.is_owner || user?.role === 'bot_owner') && (
                       <button onClick={() => showToken(bot.id)}
                         className="px-3 py-1.5 text-xs bg-muted border border-border rounded-md text-foreground hover:bg-border transition-colors">
                         Token anzeigen
