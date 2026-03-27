@@ -38,7 +38,7 @@ const themeEntries = Object.entries(THEME_PREVIEWS) as Array<
 
 export default function Settings() {
   const { t } = useTranslation()
-  const { theme, fontSize, setTheme, setFontSize, stayLoggedIn, setStayLoggedIn, devMode, setDevMode } = useUIStore()
+  const { theme, fontSize, setTheme, setFontSize, devMode, setDevMode } = useUIStore()
   const [info, setInfo] = useState<AppInfo | null>(null)
 
   useEffect(() => {
@@ -107,22 +107,6 @@ export default function Settings() {
         </section>
 
         {/* Security */}
-        <section className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-foreground mb-4">Sicherheit</h3>
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-foreground">30 Tage angemeldet bleiben</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Session wird automatisch auf 30 Tage verlängert</p>
-            </div>
-            <Toggle checked={stayLoggedIn} onChange={setStayLoggedIn} />
-          </div>
-          {stayLoggedIn && (
-            <p className="mt-3 text-xs text-primary/80 flex items-center gap-1.5">
-              <Check size={11} /> Aktiv — nächste Anmeldung läuft 30 Tage
-            </p>
-          )}
-        </section>
-
         {/* Developer */}
         <section className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold text-foreground mb-4">Entwickler</h3>
