@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  LayoutDashboard, Server, RefreshCw, Puzzle, Bot,
+  LayoutDashboard, Server, RefreshCw, Puzzle, Bot as BotIcon,
   ClipboardCheck, Users, ScrollText, Settings,
   ChevronLeft, ChevronRight, LogOut,
 } from 'lucide-react'
@@ -20,7 +20,7 @@ interface NavItem {
 export function Sidebar() {
   const { t } = useTranslation()
   const { user, logout } = useAuthStore()
-  const { sidebarCollapsed, sidebarWidth, setSidebarCollapsed, setSidebarWidth } = useUIStore()
+  const { sidebarCollapsed, sidebarWidth, setSidebarCollapsed, setSidebarWidth, previewUser } = useUIStore()
   const [version, setVersion] = useState<string | null>(null)
   const isDragging = useRef(false)
   const dragStartX = useRef(0)
@@ -31,17 +31,30 @@ export function Sidebar() {
     client.get<{ version: string }>('/info').then((r) => setVersion(r.data.version)).catch(() => {})
   }, [])
 
-  const navItems: NavItem[] = [
+  const effectiveUser = previewUser ?? user
+  const isBotOwner = effectiveUser?.role === 'bot_owner'
+  const assignedBot = effectiveUser?.assigned_bot
+
+  const fullNavItems: NavItem[] = [
     { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard size={18} /> },
     { to: '/servers', label: t('nav.servers'), icon: <Server size={18} /> },
     { to: '/sync', label: t('nav.sync'), icon: <RefreshCw size={18} /> },
     { to: '/plugins', label: t('nav.plugins'), icon: <Puzzle size={18} /> },
-    { to: '/bots', label: t('nav.bots'), icon: <Bot size={18} /> },
+    { to: '/bots', label: t('nav.bots'), icon: <BotIcon size={18} /> },
     { to: '/approvals', label: t('nav.approvals'), icon: <ClipboardCheck size={18} />, adminOnly: true },
     { to: '/users', label: t('nav.users'), icon: <Users size={18} />, adminOnly: true },
     { to: '/logs', label: t('nav.logs'), icon: <ScrollText size={18} /> },
     { to: '/settings', label: t('nav.settings'), icon: <Settings size={18} /> },
   ]
+
+  const botOwnerNavItems: NavItem[] = [
+    { to: '/bot-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
+    { to: '/plugins', label: 'Plugins', icon: <Puzzle size={18} /> },
+    { to: '/bots', label: 'Bot', icon: <BotIcon size={18} /> },
+    { to: '/settings', label: 'Einstellungen', icon: <Settings size={18} /> },
+  ]
+
+  const navItems = isBotOwner ? botOwnerNavItems : fullNavItems
 
   const isAdminOrOwner = user?.role === 'admin' || user?.is_owner
 
@@ -82,10 +95,16 @@ export function Sidebar() {
       {/* Header — branding only */}
       <div className={`px-3 py-4 border-b border-border ${collapsed ? 'flex justify-center' : ''}`}>
         {collapsed ? (
-          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">IP</div>
+          <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground text-xs font-bold">
+            {isBotOwner && assignedBot ? assignedBot.name.slice(0, 2).toUpperCase() : 'IP'}
+          </div>
         ) : (
           <div className="flex items-baseline gap-2">
-            <h1 className="text-base font-bold text-primary truncate">InfraPanel</h1>
+            {isBotOwner && assignedBot ? (
+              <h1 className="text-base font-bold text-primary truncate">{assignedBot.name}</h1>
+            ) : (
+              <h1 className="text-base font-bold text-primary truncate">InfraPanel</h1>
+            )}
             {version && <span className="text-xs text-muted-foreground font-mono flex-shrink-0">v{version}</span>}
           </div>
         )}
