@@ -29,6 +29,10 @@ interface Server { id: number; name: string }
 
 export default function Bots() {
   const { user } = useAuthStore()
+  const previewUser = (useUIStore as any)((s: any) => s.previewUser) ?? null
+  const effectiveUser = previewUser ?? user
+  const isBotOwner = effectiveUser?.role === 'bot_owner'
+  const assignedBotId = (effectiveUser as any)?.assigned_bot?.id as number | undefined
   const [bots, setBots] = useState<Bot[]>([])
   const [servers, setServers] = useState<Server[]>([])
   const [tokens, setTokens] = useState<Record<number, string>>({})
@@ -47,6 +51,10 @@ export default function Bots() {
   const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
   const [editingName, setEditingName] = useState<Record<number, string | null>>({})
   const [nameSaving, setNameSaving] = useState<Record<number, boolean>>({})
+
+  const visibleBots = isBotOwner && assignedBotId
+    ? bots.filter((b) => b.id === assignedBotId)
+    : bots
 
   useEffect(() => {
     client.get<Bot[]>('/bots/').then((r) => {
@@ -160,7 +168,7 @@ export default function Bots() {
     <div>
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-foreground">Bots</h2>
-        {user?.is_owner && (
+        {user?.is_owner && !isBotOwner && (
           <button onClick={() => { setAddModal(true); setAddError('') }}
             className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:opacity-90 transition-opacity">
             <Plus size={14} /> Bot hinzufügen
@@ -169,7 +177,7 @@ export default function Bots() {
       </div>
 
       {/* Feature Request Banner */}
-      <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-3 flex items-start justify-between gap-4 mb-4">
+      {!isBotOwner && <div className="bg-primary/10 border border-primary/20 rounded-lg px-4 py-3 flex items-start justify-between gap-4 mb-4">
         <div className="flex items-start gap-3">
           <MessageSquare size={18} className="text-primary mt-0.5 flex-shrink-0" />
           <div>
@@ -186,10 +194,10 @@ export default function Bots() {
         >
           Anfrage senden
         </button>
-      </div>
+      </div>}
 
       <div className="space-y-4">
-        {bots.map((bot) => (
+        {visibleBots.map((bot) => (
           <div key={bot.id} className="bg-card border border-border rounded-xl overflow-hidden">
             {/* Bot header */}
             <div className="flex items-center justify-between px-5 py-4">
@@ -318,7 +326,7 @@ export default function Bots() {
             )}
           </div>
         ))}
-        {bots.length === 0 && (
+        {visibleBots.length === 0 && (
           <p className="text-muted-foreground text-sm">Keine Bots konfiguriert.</p>
         )}
       </div>
