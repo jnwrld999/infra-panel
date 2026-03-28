@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Eye, EyeOff, Copy, X, Loader, ChevronDown, ChevronRight, MessageSquare, Pencil, Check } from 'lucide-react'
+import { Plus, RefreshCw, Eye, EyeOff, Copy, X, Loader, ChevronDown, ChevronRight, MessageSquare, Pencil, Check, Layers } from 'lucide-react'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
 import client from '@/api/client'
@@ -16,6 +16,34 @@ interface Bot {
 }
 
 interface Plugin { name: string; filename: string; status: string; type: string }
+
+interface EmbedField { name: string; value: string; inline: boolean }
+interface EmbedData {
+  title: string | null
+  description: string | null
+  color: number | null
+  author: string | null
+  footer: string | null
+  image: string | null
+  thumbnail: string | null
+  fields: EmbedField[]
+}
+
+const EMPTY_EMBED: EmbedData = {
+  title: null, description: null, color: null, author: null,
+  footer: null, image: null, thumbnail: null, fields: [],
+}
+
+function colorToHex(color: number | null): string {
+  if (color === null) return ''
+  return '#' + color.toString(16).padStart(6, '0')
+}
+
+function hexToColor(hex: string): number | null {
+  const clean = hex.replace('#', '')
+  if (!/^[0-9a-fA-F]{6}$/.test(clean)) return null
+  return parseInt(clean, 16)
+}
 
 const BOT_DEFAULT_PATHS: Record<number, string> = {
   1: '/root/Discord Bots/AxellottenTV',
@@ -79,6 +107,14 @@ export default function Bots() {
   const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
   const [editingName, setEditingName] = useState<Record<number, string | null>>({})
   const [nameSaving, setNameSaving] = useState<Record<number, boolean>>({})
+  const [embedModal, setEmbedModal] = useState<{ bot: Bot; cog: Plugin } | null>(null)
+  const [embeds, setEmbeds] = useState<EmbedData[]>([])
+  const [embedsLoading, setEmbedsLoading] = useState(false)
+  const [activeEmbedIdx, setActiveEmbedIdx] = useState(0)
+  const [channelId, setChannelId] = useState('')
+  const [messageId, setMessageId] = useState('')
+  const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle')
+  const [sendError, setSendError] = useState('')
 
   const visibleBots = isBotOwner && assignedBotId
     ? bots.filter((b) => b.id === assignedBotId)
@@ -175,6 +211,61 @@ export default function Bots() {
       })
       .catch(() => {})
       .finally(() => setNameSaving((prev) => { const n = { ...prev }; delete n[id]; return n }))
+  }
+
+  const openEmbedModal = (bot: Bot, cog: Plugin) => {
+    setEmbedModal({ bot, cog })
+    setEmbeds([])
+    setEmbedsLoading(true)
+    setActiveEmbedIdx(0)
+    setChannelId('')
+    setMessageId('')
+    setSendStatus('idle')
+    setSendError('')
+    const filePath = cogFilePath(bot.id, cog)
+    client.get<EmbedData[]>(`/plugins/embeds?bot_id=${bot.id}&file_path=${encodeURIComponent(filePath)}`)
+      .then((r) => setEmbeds(r.data.length > 0 ? r.data : [{ ...EMPTY_EMBED, fields: [] }]))
+      .catch(() => setEmbeds([{ ...EMPTY_EMBED, fields: [] }]))
+      .finally(() => setEmbedsLoading(false))
+  }
+
+  const updateEmbed = (idx: number, patch: Partial<EmbedData>) => {
+    setEmbeds((prev) => prev.map((e, i) => i === idx ? { ...e, ...patch } : e))
+  }
+
+  const updateEmbedField = (embedIdx: number, fieldIdx: number, patch: Partial<EmbedField>) => {
+    setEmbeds((prev) => prev.map((e, i) => {
+      if (i !== embedIdx) return e
+      return { ...e, fields: e.fields.map((f, fi) => fi === fieldIdx ? { ...f, ...patch } : f) }
+    }))
+  }
+
+  const addEmbedField = (embedIdx: number) => {
+    setEmbeds((prev) => prev.map((e, i) =>
+      i === embedIdx ? { ...e, fields: [...e.fields, { name: '', value: '', inline: false }] } : e
+    ))
+  }
+
+  const removeEmbedField = (embedIdx: number, fieldIdx: number) => {
+    setEmbeds((prev) => prev.map((e, i) =>
+      i === embedIdx ? { ...e, fields: e.fields.filter((_, fi) => fi !== fieldIdx) } : e
+    ))
+  }
+
+  const sendEmbed = () => {
+    if (!embedModal || !channelId.trim()) return
+    setSendStatus('sending')
+    setSendError('')
+    client.post(`/bots/${embedModal.bot.id}/send-embed`, {
+      embed: embeds[activeEmbedIdx],
+      channel_id: channelId.trim(),
+      message_id: messageId.trim() || null,
+    })
+      .then(() => setSendStatus('ok'))
+      .catch((e) => {
+        setSendStatus('error')
+        setSendError(e?.response?.data?.detail || 'Fehler beim Senden.')
+      })
   }
 
   const submitAdd = () => {
@@ -346,12 +437,18 @@ export default function Bots() {
                               <p className="text-xs text-muted-foreground truncate">{cog.filename}</p>
                             </div>
                           </div>
-                          {bot.server_id && (
-                            <button onClick={() => viewFile(bot.server_id!, filePath, cog.name)}
+                          <div className="flex items-center gap-1">
+                            {bot.server_id && (
+                              <button onClick={() => viewFile(bot.server_id!, filePath, cog.name)}
+                                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                                <Eye size={13} /> Code
+                              </button>
+                            )}
+                            <button onClick={() => openEmbedModal(bot, cog)}
                               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                              <Eye size={13} /> Code
+                              <Layers size={13} /> Embeds
                             </button>
-                          )}
+                          </div>
                         </div>
                       )
                     })}
