@@ -1,10 +1,10 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Theme = 'dark' | 'light' | 'monokai' | 'dracula' | 'nord' | 'solarized' | 'catppuccin' | 'onedark'
+export type Theme = 'dark' | 'light' | 'monokai' | 'dracula' | 'nord' | 'solarized' | 'catppuccin' | 'onedark' | 'tokyo-night' | 'gruvbox' | 'rose-pine'
 type FontSize = 'small' | 'normal' | 'large'
 
-export type PanelType = 'servers' | 'approvals' | 'errors' | 'users'
+export type PanelType = 'servers' | 'approvals' | 'errors' | 'users' | 'server_monitoring'
 
 interface UIState {
   theme: Theme

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Plus, RefreshCw, Eye, X, Loader, List, LayoutGrid, AlertCircle, MessageSquare } from 'lucide-react'
+import { Plus, RefreshCw, Eye, X, Loader, List, LayoutGrid, AlertCircle, MessageSquare, Layers, Send, Trash2, Power } from 'lucide-react'
 import client from '@/api/client'
 import { useUIStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
@@ -7,6 +7,46 @@ import { useAuthStore } from '@/store/authStore'
 interface Plugin { name: string; filename: string; status: string; type: string }
 interface Bot { id: number; name: string; server_id?: number; status?: string; restricted?: boolean }
 interface BotCogConfig { botId: number; botName: string; serverId: number; botPath: string; cogs: Plugin[]; loading: boolean; error?: string | null }
+
+interface EmbedField { name: string; value: string; inline: boolean }
+interface EmbedData {
+  title: string | null; description: string | null; color: number | null
+  author: string | null; footer: string | null; image: string | null
+  thumbnail: string | null; fields: EmbedField[]
+}
+const EMPTY_EMBED: EmbedData = { title: null, description: null, color: 0x5865f2, author: null, footer: null, image: null, thumbnail: null, fields: [] }
+
+function colorToHex(c: number | null): string {
+  if (!c) return '#5865f2'
+  return '#' + c.toString(16).padStart(6, '0')
+}
+
+function EmbedPreview({ embed }: { embed: EmbedData }) {
+  const borderColor = embed.color ? colorToHex(embed.color) : '#5865f2'
+  const hasContent = embed.title || embed.description || embed.author || embed.footer || embed.image || embed.thumbnail || (embed.fields?.length ?? 0) > 0
+  if (!hasContent) return <div className="text-xs text-muted-foreground text-center py-4">Keine Vorschau</div>
+  return (
+    <div className="rounded overflow-hidden max-w-lg" style={{ borderLeft: `4px solid ${borderColor}`, background: '#2b2d31' }}>
+      <div className="p-3 space-y-1">
+        {embed.author && <div className="text-xs font-semibold text-[#dbdee1]">{embed.author}</div>}
+        {embed.title && <div className="font-semibold text-sm text-[#dbdee1]">{embed.title}</div>}
+        {embed.description && <div className="text-xs text-[#dbdee1] whitespace-pre-wrap">{embed.description}</div>}
+        {embed.fields && embed.fields.length > 0 && (
+          <div className="grid gap-1 pt-1" style={{ gridTemplateColumns: 'repeat(3,1fr)' }}>
+            {embed.fields.map((f, i) => (
+              <div key={i} style={{ gridColumn: f.inline ? 'span 1' : 'span 3' }}>
+                {f.name && <div className="text-xs font-semibold text-[#dbdee1]">{f.name}</div>}
+                {f.value && <div className="text-xs text-[#dbdee1]">{f.value}</div>}
+              </div>
+            ))}
+          </div>
+        )}
+        {embed.image && <img src={embed.image} className="mt-2 rounded max-w-full" alt="" onError={(e) => (e.currentTarget.style.display = 'none')} />}
+        {embed.footer && <div className="text-[10px] text-[#949ba4] pt-1">{embed.footer}</div>}
+      </div>
+    </div>
+  )
+}
 
 const BOT_DEFAULT_PATHS: Record<number, string> = {
   1: '/root/Discord Bots/AxellottenTV',
@@ -40,6 +80,40 @@ export default function Plugins() {
   const [requestForm, setRequestForm] = useState({ type: 'plugin_request', description: '' })
   const [requestLoading, setRequestLoading] = useState(false)
   const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
+
+  // Embed modal
+  const [embedModal, setEmbedModal] = useState<{ botId: number; serverId: number; cog: Plugin; botPath: string } | null>(null)
+  const [embeds, setEmbeds] = useState<EmbedData[]>([])
+  const [embedsLoading, setEmbedsLoading] = useState(false)
+  const [activeEmbedIdx, setActiveEmbedIdx] = useState(0)
+  const [channelId, setChannelId] = useState('')
+  const [messageId, setMessageId] = useState('')
+  const [sendStatus, setSendStatus] = useState<'idle' | 'sending' | 'ok' | 'error'>('idle')
+  const [sendError, setSendError] = useState('')
+
+  const [togglingCog, setTogglingCog] = useState<Record<string, boolean>>({})
+
+  const toggleCog = (config: BotCogConfig, cog: Plugin) => {
+    const key = `${config.botId}-${cog.filename}`
+    const enable = cog.status === 'disabled'
+    setTogglingCog(prev => ({ ...prev, [key]: true }))
+    client.post(`/plugins/toggle-discord-cog?bot_id=${config.botId}&filename=${encodeURIComponent(cog.filename)}&enable=${enable}&bot_path=${encodeURIComponent(config.botPath)}`)
+      .then(() => {
+        // Update cog status locally
+        setBotConfigs(prev => prev.map(c => c.botId !== config.botId ? c : {
+          ...c,
+          cogs: c.cogs.map(g => g.filename !== cog.filename ? g : {
+            ...g,
+            filename: enable
+              ? g.filename.replace(/\.(py|js)\.disabled$/, '.$1')
+              : g.filename + '.disabled',
+            status: enable ? 'active' : 'disabled',
+          })
+        }))
+      })
+      .catch(() => {})
+      .finally(() => setTogglingCog(prev => { const n = { ...prev }; delete n[key]; return n }))
+  }
 
   const submitPluginRequest = () => {
     if (!requestForm.description.trim()) return
@@ -114,6 +188,55 @@ export default function Plugins() {
     client.get<{ content: string }>(`/plugins/read-file?server_id=${serverId}&path=${encodeURIComponent(path)}`)
       .then((r) => setFileViewer({ serverId, path, content: r.data.content, name }))
       .catch(() => setFileViewer({ serverId, path, content: '(Datei konnte nicht geladen werden)', name }))
+  }
+
+  const openEmbedModal = (config: BotCogConfig, cog: Plugin) => {
+    const filePath = cog.type === 'java'
+      ? `${config.botPath}/src/main/java/main/${cog.filename}`
+      : cog.type === 'nodejs'
+        ? `${config.botPath}/src/${cog.filename}`
+        : `${config.botPath}/cogs/${cog.filename}`
+    setEmbedModal({ botId: config.botId, serverId: config.serverId, cog, botPath: config.botPath })
+    setEmbeds([]); setEmbedsLoading(true); setActiveEmbedIdx(0)
+    setChannelId(''); setMessageId(''); setSendStatus('idle'); setSendError('')
+    client.get<EmbedData[]>(`/plugins/embeds?bot_id=${config.botId}&file_path=${encodeURIComponent(filePath)}`)
+      .then((r) => setEmbeds(r.data.length > 0 ? r.data : [{ ...EMPTY_EMBED, fields: [] }]))
+      .catch(() => setEmbeds([{ ...EMPTY_EMBED, fields: [] }]))
+      .finally(() => setEmbedsLoading(false))
+  }
+
+  const updateEmbed = (idx: number, patch: Partial<EmbedData>) =>
+    setEmbeds((prev) => prev.map((e, i) => i === idx ? { ...e, ...patch } : e))
+
+  const updateField = (ei: number, fi: number, patch: Partial<EmbedField>) =>
+    setEmbeds((prev) => prev.map((e, i) => i !== ei ? e : { ...e, fields: e.fields.map((f, j) => j !== fi ? f : { ...f, ...patch }) }))
+
+  const addField = (ei: number) =>
+    setEmbeds((prev) => prev.map((e, i) => i !== ei ? e : { ...e, fields: [...e.fields, { name: '', value: '', inline: false }] }))
+
+  const removeField = (ei: number, fi: number) =>
+    setEmbeds((prev) => prev.map((e, i) => i !== ei ? e : { ...e, fields: e.fields.filter((_, j) => j !== fi) }))
+
+  const sendEmbed = () => {
+    if (!embedModal || !channelId.trim()) return
+    setSendStatus('sending'); setSendError('')
+    const embed = embeds[activeEmbedIdx]
+    client.post<{ message_id: string }>(`/bots/${embedModal.botId}/send-embed`, {
+      embed: {
+        ...(embed.title && { title: embed.title }),
+        ...(embed.description && { description: embed.description }),
+        ...(embed.color && { color: embed.color }),
+        ...(embed.author && { author: embed.author }),
+        ...(embed.footer && { footer: embed.footer }),
+        ...(embed.image && { image: embed.image }),
+        ...(embed.thumbnail && { thumbnail: embed.thumbnail }),
+        ...(embed.fields?.length ? { fields: embed.fields } : {}),
+      },
+      channel_id: channelId.trim(),
+      message_id: messageId.trim() || undefined,
+    })
+      .then((r) => { setSendStatus('ok'); setMessageId(r.data.message_id) })
+      .catch((e) => { setSendStatus('error'); setSendError(e?.response?.data?.detail || 'Fehler') })
   }
 
   const visibleBots = isBotOwner && assignedBotId
@@ -235,17 +358,39 @@ export default function Plugins() {
                         <div key={cog.filename} className="flex items-center justify-between px-5 py-3 hover:bg-muted/20 transition-colors">
                           <div className="flex items-center gap-3 min-w-0">
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              cog.status === 'disabled' ? 'bg-gray-500' :
                               cog.type === 'java' ? 'bg-orange-400' : cog.type === 'nodejs' ? 'bg-green-400' : 'bg-blue-400'
                             }`} />
                             <div className="min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate">{cog.name}</p>
+                              <p className={`text-sm font-medium truncate ${cog.status === 'disabled' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{cog.name}</p>
                               <p className="text-xs text-muted-foreground truncate">{cog.filename}</p>
                             </div>
                           </div>
-                          <button onClick={() => viewFile(activeConfig.serverId, filePath, cog.name)}
-                            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                            <Eye size={13} /> Code
-                          </button>
+                          <div className="flex items-center gap-1">
+                            {(cog.type === 'discord_cog' || cog.type === 'nodejs') && (
+                              <button
+                                onClick={() => toggleCog(activeConfig, cog)}
+                                disabled={!!togglingCog[`${activeConfig.botId}-${cog.filename}`]}
+                                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
+                                  cog.status === 'disabled'
+                                    ? 'text-green-400 hover:bg-green-400/10'
+                                    : 'text-yellow-400 hover:bg-yellow-400/10'
+                                } disabled:opacity-50`}
+                              >
+                                {togglingCog[`${activeConfig.botId}-${cog.filename}`]
+                                  ? <Loader size={12} className="animate-spin" />
+                                  : cog.status === 'disabled' ? 'Aktivieren' : 'Deaktivieren'}
+                              </button>
+                            )}
+                            <button onClick={() => viewFile(activeConfig.serverId, filePath, cog.name)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                              <Eye size={13} /> Code
+                            </button>
+                            <button onClick={() => openEmbedModal(activeConfig, cog)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                              <Layers size={13} /> Embed
+                            </button>
+                          </div>
                         </div>
                       )
                     })}
@@ -262,15 +407,37 @@ export default function Plugins() {
                         <div key={cog.filename} className="bg-muted/30 border border-border rounded-lg p-3 flex flex-col gap-2 hover:bg-muted/50 transition-colors">
                           <div className="flex items-center gap-2">
                             <span className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                              cog.status === 'disabled' ? 'bg-gray-500' :
                               cog.type === 'java' ? 'bg-orange-400' : cog.type === 'nodejs' ? 'bg-green-400' : 'bg-blue-400'
                             }`} />
-                            <p className="text-sm font-medium text-foreground truncate">{cog.name}</p>
+                            <p className={`text-sm font-medium truncate ${cog.status === 'disabled' ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{cog.name}</p>
                           </div>
                           <p className="text-xs text-muted-foreground truncate">{cog.filename}</p>
-                          <button onClick={() => viewFile(activeConfig.serverId, filePath, cog.name)}
-                            className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors w-fit">
-                            <Eye size={13} /> Code
-                          </button>
+                          <div className="flex items-center gap-1">
+                            {(cog.type === 'discord_cog' || cog.type === 'nodejs') && (
+                              <button
+                                onClick={() => toggleCog(activeConfig, cog)}
+                                disabled={!!togglingCog[`${activeConfig.botId}-${cog.filename}`]}
+                                className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
+                                  cog.status === 'disabled'
+                                    ? 'text-green-400 hover:bg-green-400/10'
+                                    : 'text-yellow-400 hover:bg-yellow-400/10'
+                                } disabled:opacity-50`}
+                              >
+                                {togglingCog[`${activeConfig.botId}-${cog.filename}`]
+                                  ? <Loader size={12} className="animate-spin" />
+                                  : cog.status === 'disabled' ? 'Aktivieren' : 'Deaktivieren'}
+                              </button>
+                            )}
+                            <button onClick={() => viewFile(activeConfig.serverId, filePath, cog.name)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                              <Eye size={13} /> Code
+                            </button>
+                            <button onClick={() => openEmbedModal(activeConfig, cog)}
+                              className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                              <Layers size={13} /> Embed
+                            </button>
+                          </div>
                         </div>
                       )
                     })}
@@ -338,6 +505,90 @@ export default function Plugins() {
                 className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50 transition-colors">
                 {requestLoading ? 'Sende...' : 'Anfrage senden'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Embed modal */}
+      {embedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+              <div>
+                <h3 className="font-semibold text-foreground text-sm">Embeds — {embedModal.cog.name}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{embedModal.cog.filename}</p>
+              </div>
+              <button onClick={() => setEmbedModal(null)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"><X size={16} /></button>
+            </div>
+            <div className="flex-1 overflow-auto p-5 min-h-0 space-y-4">
+              {embedsLoading && <div className="text-center text-sm text-muted-foreground py-6"><Loader size={16} className="animate-spin inline mr-2" />Lädt Embeds...</div>}
+              {!embedsLoading && embeds.length === 0 && <div className="text-center text-sm text-muted-foreground py-6">Keine Embeds gefunden</div>}
+              {!embedsLoading && embeds.length > 0 && (
+                <>
+                  {embeds.length > 1 && (
+                    <div className="flex gap-1 flex-wrap">
+                      {embeds.map((_, i) => (
+                        <button key={i} onClick={() => setActiveEmbedIdx(i)}
+                          className={`px-2 py-1 rounded text-xs border transition-colors ${i === activeEmbedIdx ? 'bg-primary text-primary-foreground border-primary' : 'border-border text-muted-foreground hover:text-foreground hover:bg-muted'}`}>
+                          Embed {i + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {/* Embed editor */}
+                  {embeds[activeEmbedIdx] && (() => {
+                    const e = embeds[activeEmbedIdx]
+                    const update = (p: Partial<EmbedData>) => updateEmbed(activeEmbedIdx, p)
+                    const inputCls = "w-full bg-muted border border-border rounded px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    return (
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
+                          <div className="flex items-center gap-2">
+                            <input type="color" value={colorToHex(e.color)} onChange={ev => update({ color: parseInt(ev.target.value.slice(1), 16) })}
+                              className="w-8 h-8 rounded border border-border bg-muted cursor-pointer flex-shrink-0" />
+                            <input className={inputCls} placeholder="Titel" value={e.title ?? ''} onChange={ev => update({ title: ev.target.value || null })} />
+                          </div>
+                          <textarea className={`${inputCls} resize-none`} rows={3} placeholder="Beschreibung" value={e.description ?? ''} onChange={ev => update({ description: ev.target.value || null })} />
+                          <input className={inputCls} placeholder="Author" value={e.author ?? ''} onChange={ev => update({ author: ev.target.value || null })} />
+                          <input className={inputCls} placeholder="Footer" value={e.footer ?? ''} onChange={ev => update({ footer: ev.target.value || null })} />
+                          <input className={inputCls} placeholder="Bild URL" value={e.image ?? ''} onChange={ev => update({ image: ev.target.value || null })} />
+                          <input className={inputCls} placeholder="Thumbnail URL" value={e.thumbnail ?? ''} onChange={ev => update({ thumbnail: ev.target.value || null })} />
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-muted-foreground">Fields</span>
+                              <button onClick={() => addField(activeEmbedIdx)} className="text-xs text-primary hover:underline">+ hinzufügen</button>
+                            </div>
+                            {(e.fields ?? []).map((f, fi) => (
+                              <div key={fi} className="flex gap-1 mb-1 items-center">
+                                <input className="flex-1 bg-muted border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none" placeholder="Name" value={f.name} onChange={ev => updateField(activeEmbedIdx, fi, { name: ev.target.value })} />
+                                <input className="flex-1 bg-muted border border-border rounded px-2 py-1 text-xs text-foreground focus:outline-none" placeholder="Value" value={f.value} onChange={ev => updateField(activeEmbedIdx, fi, { value: ev.target.value })} />
+                                <button onClick={() => removeField(activeEmbedIdx, fi)} className="p-1 text-muted-foreground hover:text-red-400"><Trash2 size={12} /></button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          <p className="text-xs font-medium text-muted-foreground">Vorschau</p>
+                          <EmbedPreview embed={e} />
+                          <div className="pt-2 space-y-2 border-t border-border">
+                            <p className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Send size={11} /> Senden</p>
+                            <input className={inputCls + ' font-mono'} placeholder="Kanal ID" value={channelId} onChange={ev => setChannelId(ev.target.value.trim())} />
+                            <input className={inputCls + ' font-mono'} placeholder="Nachricht ID (optional, zum Bearbeiten)" value={messageId} onChange={ev => setMessageId(ev.target.value.trim())} />
+                            {sendStatus === 'ok' && <p className="text-xs text-green-400">{messageId ? 'Embed bearbeitet!' : 'Embed gesendet!'}</p>}
+                            {sendStatus === 'error' && <p className="text-xs text-red-400">{sendError}</p>}
+                            <button onClick={sendEmbed} disabled={sendStatus === 'sending' || !channelId.trim()}
+                              className="w-full flex items-center justify-center gap-2 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                              <Send size={14} />
+                              {sendStatus === 'sending' ? 'Sendet...' : messageId ? 'Embed bearbeiten' : 'Embed senden'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+                </>
+              )}
             </div>
           </div>
         </div>

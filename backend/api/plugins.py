@@ -160,6 +160,45 @@ def get_embeds(
     return parse_embeds(source, language)
 
 
+@router.post("/toggle-discord-cog")
+def toggle_discord_cog(
+    bot_id: int,
+    filename: str,
+    enable: bool,
+    bot_path: str,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Enable or disable a Discord bot cog by renaming the file."""
+    if ".." in filename or "/" in filename:
+        raise HTTPException(status_code=400, detail="Invalid filename")
+
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    if current_user.role != "owner":
+        whitelisted = db.query(BotWhitelist).filter(
+            BotWhitelist.bot_id == bot_id,
+            BotWhitelist.discord_user_id == current_user.discord_id,
+        ).first()
+        if not whitelisted:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    if not bot.server_id:
+        raise HTTPException(status_code=404, detail="Bot has no associated server")
+
+    server = db.query(Server).filter(Server.id == bot.server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    svc = PluginService(server)
+    result = svc.toggle_discord_cog(bot_path, filename, enable)
+    if not result.get("success"):
+        raise HTTPException(status_code=400, detail=result.get("message", "Fehler"))
+    return {"success": True}
+
+
 @router.get("/discord-bot/{bot_id}")
 def list_discord_bot_cogs(
     bot_id: int,

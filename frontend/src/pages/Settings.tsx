@@ -4,8 +4,14 @@ import i18n from '@/i18n'
 import client from '@/api/client'
 import { useUIStore } from '@/store/uiStore'
 import type { Theme } from '@/store/uiStore'
-import { Check, AlertTriangle } from 'lucide-react'
+import { Check, AlertTriangle, RotateCcw } from 'lucide-react'
 import { Toggle } from '@/components/Toggle'
+
+declare global {
+  interface Window {
+    infraPanel?: { version: string; platform: string; restart: () => void }
+  }
+}
 
 interface AppInfo {
   name: string
@@ -24,6 +30,9 @@ const THEME_PREVIEWS: Record<Theme, { bg: string; card: string; primary: string;
   solarized:  { bg: '#002b36', card: '#073642', primary: '#268bd2', label: 'Solarized' },
   catppuccin: { bg: '#1e1e2e', card: '#181825', primary: '#cba6f7', label: 'Catppuccin' },
   onedark:    { bg: '#21252b', card: '#282c34', primary: '#61afef', label: 'One Dark' },
+  'tokyo-night': { bg: '#1a1b26', card: '#16161e', primary: '#7aa2f7', label: 'Tokyo Night' },
+  gruvbox:       { bg: '#282828', card: '#1d2021', primary: '#fe8019', label: 'Gruvbox' },
+  'rose-pine':   { bg: '#191724', card: '#1f1d2e', primary: '#c4a7e7', label: 'Rose Pine' },
 }
 
 const FONT_SIZES = [
@@ -124,6 +133,20 @@ export default function Settings() {
             </div>
           )}
         </section>
+
+        {/* App controls — only in Electron */}
+        {window.infraPanel && (
+          <section className="bg-card border border-border rounded-xl p-5">
+            <h3 className="font-semibold text-foreground mb-4">App</h3>
+            <button
+              onClick={() => window.infraPanel?.restart()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm text-foreground border border-border transition-colors"
+            >
+              <RotateCcw size={14} />
+              App neu starten
+            </button>
+          </section>
+        )}
 
         {/* About */}
         <section className="bg-card border border-border rounded-xl p-5">
