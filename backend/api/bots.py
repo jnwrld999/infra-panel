@@ -1,3 +1,4 @@
+import httpx
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -25,6 +26,29 @@ class BotUpdate(BaseModel):
     type: Optional[str] = None
     description: Optional[str] = None
     owner_discord_id: Optional[str] = None
+
+
+class EmbedFieldPayload(BaseModel):
+    name: str = ""
+    value: str = ""
+    inline: bool = False
+
+
+class EmbedPayload(BaseModel):
+    title: Optional[str] = None
+    description: Optional[str] = None
+    color: Optional[int] = None
+    author: Optional[str] = None
+    footer: Optional[str] = None
+    image: Optional[str] = None
+    thumbnail: Optional[str] = None
+    fields: list[EmbedFieldPayload] = []
+
+
+class SendEmbedRequest(BaseModel):
+    embed: EmbedPayload
+    channel_id: str
+    message_id: Optional[str] = None
 
 
 def _bot_to_dict(bot: Bot, restricted: bool = False) -> dict:
@@ -238,3 +262,84 @@ def remove_from_whitelist(
     db.delete(entry)
     db.commit()
     return {"message": "Removed from whitelist", "discord_id": discord_id}
+
+
+@router.post("/{bot_id}/send-embed")
+def send_embed(
+    bot_id: int,
+    body: SendEmbedRequest,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Send or edit a Discord message with an embed using the bot's token."""
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    if current_user.role != "owner":
+        is_bot_owner = (
+            current_user.role == "bot_owner"
+            and bot.owner_discord_id == current_user.discord_id
+        )
+        if not is_bot_owner:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+    if not bot.token_encrypted:
+        raise HTTPException(status_code=400, detail="Bot has no token configured")
+
+    token = decrypt(bot.token_encrypted)
+    e = body.embed
+
+    payload_embed: dict = {}
+    if e.title:
+        payload_embed["title"] = e.title
+    if e.description:
+        payload_embed["description"] = e.description
+    if e.color is not None:
+        payload_embed["color"] = e.color
+    if e.footer:
+        payload_embed["footer"] = {"text": e.footer}
+    if e.image:
+        payload_embed["image"] = {"url": e.image}
+    if e.thumbnail:
+        payload_embed["thumbnail"] = {"url": e.thumbnail}
+    if e.author:
+        payload_embed["author"] = {"name": e.author}
+    non_empty_fields = [
+        {"name": f.name, "value": f.value, "inline": f.inline}
+        for f in e.fields
+        if f.name or f.value
+    ]
+    if non_empty_fields:
+        payload_embed["fields"] = non_empty_fields
+
+    headers = {"Authorization": f"Bot {token}"}
+    channel_id = body.channel_id
+    message_id = body.message_id
+
+    try:
+        with httpx.Client(timeout=10) as http:
+            if message_id:
+                url = f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}"
+                resp = http.patch(url, headers=headers, json={"embeds": [payload_embed]})
+            else:
+                url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
+                resp = http.post(url, headers=headers, json={"embeds": [payload_embed]})
+
+        if not resp.is_success:
+            try:
+                detail = resp.json().get("message", str(resp.status_code))
+            except Exception:
+                detail = str(resp.status_code)
+            raise HTTPException(status_code=502, detail=f"Discord API: {detail}")
+
+        return {"success": True, "message_id": resp.json().get("id")}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Discord API unavailable: {exc}")
