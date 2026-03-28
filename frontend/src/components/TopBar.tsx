@@ -1,76 +1,67 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Clock, AlertTriangle, Loader, RotateCcw, Download } from 'lucide-react'
+import { RefreshCw, Clock, AlertTriangle, Loader, RotateCcw, Download, ArrowUpCircle } from 'lucide-react'
 import client from '@/api/client'
 import { useUIStore } from '@/store/uiStore'
 
 interface AppInfo { version: string; build_date: string; latest_version?: string }
-interface SyncJob { id: number; status: string; completed_at: string | null }
 interface LogEntry { id: number }
 
-const SEEN_VERSION_KEY = 'infra-panel-seen-version'
+const GH_CACHE_KEY = 'infra-panel-gh-latest'
+const GH_CACHE_TTL = 10 * 60 * 1000 // 10 minutes
+
+async function fetchLatestGitHubVersion(): Promise<string | null> {
+  try {
+    const cached = localStorage.getItem(GH_CACHE_KEY)
+    if (cached) {
+      const { version, ts } = JSON.parse(cached)
+      if (Date.now() - ts < GH_CACHE_TTL) return version
+    }
+    const res = await fetch('https://api.github.com/repos/jnwrld999/infra-panel/releases/latest')
+    if (!res.ok) return null
+    const data = await res.json()
+    const version = (data.tag_name as string).replace(/^v/, '')
+    localStorage.setItem(GH_CACHE_KEY, JSON.stringify({ version, ts: Date.now() }))
+    return version
+  } catch {
+    return null
+  }
+}
+
+function isNewerVersion(latest: string, current: string): boolean {
+  const toNum = (v: string) => v.split('.').map(Number)
+  const [lMaj, lMin, lPat] = toNum(latest)
+  const [cMaj, cMin, cPat] = toNum(current)
+  if (lMaj !== cMaj) return lMaj > cMaj
+  if (lMin !== cMin) return lMin > cMin
+  return lPat > cPat
+}
 
 export function TopBar() {
   const [info, setInfo] = useState<AppInfo | null>(null)
-  const [updateAvailable, setUpdateAvailable] = useState(false)
+  const [latestVersion, setLatestVersion] = useState<string | null>(null)
   const [checking, setChecking] = useState(false)
-  const [lastSync, setLastSync] = useState<string | null>(null)
-  const [runningJobs, setRunningJobs] = useState(0)
   const [errorCount, setErrorCount] = useState(0)
   const lastReload = useUIStore((s) => s.lastReload)
   const previewUser = useUIStore((s) => s.previewUser)
   const clearPreview = useUIStore((s) => s.clearPreview)
 
   useEffect(() => {
-    // Version check
-    client.get<AppInfo>('/info').then((r) => {
-      setInfo(r.data)
-      const seen = localStorage.getItem(SEEN_VERSION_KEY)
-      if (seen && seen !== r.data.version) setUpdateAvailable(true)
-      if (!seen) localStorage.setItem(SEEN_VERSION_KEY, r.data.version)
-    }).catch(() => {})
-
-    // Sync jobs
-    client.get<SyncJob[]>('/sync/').then((r) => {
-      const jobs = r.data
-      const running = jobs.filter((j) => j.status === 'running').length
-      setRunningJobs(running)
-      const completed = jobs
-        .filter((j) => j.completed_at)
-        .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime())
-      if (completed.length > 0) setLastSync(completed[0].completed_at)
-    }).catch(() => {})
-
-    // Error count (use limit=50 to count, logs API returns list)
+    client.get<AppInfo>('/info').then((r) => setInfo(r.data)).catch(() => {})
     client.get<LogEntry[]>('/logs/?level=ERROR&days=1&limit=50').then((r) => {
       setErrorCount(r.data.length)
     }).catch(() => {})
+    fetchLatestGitHubVersion().then((v) => { if (v) setLatestVersion(v) })
   }, [])
 
   const checkForUpdates = () => {
     setChecking(true)
-    client.get<AppInfo>('/info').then(r => {
-      setInfo(r.data)
-      const seen = localStorage.getItem(SEEN_VERSION_KEY)
-      if (r.data.latest_version && r.data.latest_version !== r.data.version) {
-        setUpdateAvailable(true)
-      } else if (seen && seen !== r.data.version) {
-        setUpdateAvailable(true)
-      }
-      setChecking(false)
-    }).catch(() => setChecking(false))
+    localStorage.removeItem(GH_CACHE_KEY)
+    fetchLatestGitHubVersion()
+      .then((v) => { if (v) setLatestVersion(v) })
+      .finally(() => setChecking(false))
   }
 
-  const formatSync = (ts: string) => {
-    const d = new Date(ts)
-    const now = new Date()
-    const diffMs = now.getTime() - d.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    if (diffMins < 1) return 'gerade eben'
-    if (diffMins < 60) return `vor ${diffMins}m`
-    const diffHours = Math.floor(diffMins / 60)
-    if (diffHours < 24) return `vor ${diffHours}h`
-    return d.toLocaleDateString('de-DE')
-  }
+  const updateAvailable = !!(info && latestVersion && isNewerVersion(latestVersion, info.version))
 
   return (
     <>
@@ -95,10 +86,16 @@ export function TopBar() {
         {info && (
           <div className="flex items-center gap-1.5 text-xs">
             {updateAvailable ? (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium">
-                <RefreshCw size={11} />
-                Update verfügbar — v{info.version}
-              </span>
+              <a
+                href="https://github.com/jnwrld999/infra-panel/releases/latest"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 font-medium hover:bg-blue-500/25 transition-colors"
+                title={`v${latestVersion} herunterladen`}
+              >
+                <ArrowUpCircle size={11} />
+                v{latestVersion} verfügbar
+              </a>
             ) : (
               <span className="text-muted-foreground font-mono">v{info.version}</span>
             )}
@@ -115,30 +112,11 @@ export function TopBar() {
 
         <div className="w-px h-3 bg-border flex-shrink-0" />
 
-        {/* Last sync */}
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Clock size={12} />
-          <span>Sync: {lastSync ? formatSync(lastSync) : '—'}</span>
-        </div>
-
-        <div className="w-px h-3 bg-border flex-shrink-0" />
-
         {/* Errors */}
         <div className={`flex items-center gap-1.5 text-xs ${errorCount > 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
           <AlertTriangle size={12} />
           <span>{errorCount} Fehler (24h)</span>
         </div>
-
-        {/* Running jobs */}
-        {runningJobs > 0 && (
-          <>
-            <div className="w-px h-3 bg-border flex-shrink-0" />
-            <div className="flex items-center gap-1.5 text-xs text-yellow-400">
-              <Loader size={12} className="animate-spin" />
-              <span>{runningJobs} Job{runningJobs > 1 ? 's' : ''} laufen</span>
-            </div>
-          </>
-        )}
 
         {/* Centered Reload display */}
         {lastReload && (
