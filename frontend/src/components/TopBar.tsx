@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RefreshCw, Clock, AlertTriangle, Loader, RotateCcw } from 'lucide-react'
+import { RefreshCw, Clock, AlertTriangle, Loader, RotateCcw, Download } from 'lucide-react'
 import client from '@/api/client'
 import { useUIStore } from '@/store/uiStore'
 
@@ -150,6 +150,18 @@ export function TopBar() {
         )}
 
         <div className="ml-auto flex items-center gap-3">
+          {!window.infraPanel && (
+            <a
+              href="https://github.com/jnwrld999/infra-panel/releases/latest"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Desktop App herunterladen"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <Download size={12} />
+              Download
+            </a>
+          )}
           <button
             onClick={() => {
               if (window.infraPanel?.restart) {
