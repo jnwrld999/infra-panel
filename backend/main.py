@@ -13,7 +13,6 @@ from backend.api import info as info_router
 from backend.api import servers
 from backend.api import plugins
 from backend.api import services
-from backend.api import sync
 from backend.api import logs
 from backend.api import bots
 from backend.api import users
@@ -30,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 _dev = os.getenv("ENV", "production") != "production"
 app = FastAPI(
-    title="InfraPanel API",
+    title="GalaxyCraft Bot Panel API",
     version=__version__,
     docs_url="/api/docs" if _dev else None,
     redoc_url="/api/redoc" if _dev else None,
@@ -53,7 +52,6 @@ app.include_router(auth.router, prefix="/auth")
 app.include_router(servers.router)
 app.include_router(plugins.router)
 app.include_router(services.router)
-app.include_router(sync.router)
 app.include_router(logs.router)
 app.include_router(bots.router)
 app.include_router(users.router)

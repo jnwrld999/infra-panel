@@ -31,7 +31,6 @@ class Server(Base):
 
     bots = relationship("Bot", back_populates="server")
     plugins = relationship("Plugin", back_populates="server")
-    sync_jobs = relationship("SyncJob", back_populates="server")
     app_logs = relationship("AppLog", back_populates="server")
 
 
@@ -96,20 +95,6 @@ class Plugin(Base):
     bot = relationship("Bot", back_populates="plugins")
     server = relationship("Server", back_populates="plugins")
 
-
-class SyncJob(Base):
-    __tablename__ = "sync_jobs"
-
-    id = Column(Integer, primary_key=True, index=True)
-    server_id = Column(Integer, ForeignKey("servers.id"), nullable=True)
-    source_path = Column(String(512), nullable=False)
-    dest_path = Column(String(512), nullable=False)
-    last_run = Column(DateTime(timezone=True), nullable=True)
-    last_status = Column(String(64), nullable=True)
-    scheduled = Column(Boolean, default=False)
-    dry_run = Column(Boolean, default=False)
-
-    server = relationship("Server", back_populates="sync_jobs")
 
 
 class TokenBlocklist(Base):
