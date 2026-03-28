@@ -5,7 +5,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from backend.config import settings
+from backend.config import get_settings
+settings = get_settings()
 from backend.db.session import get_db
 from backend.db.models import Approval, AuditLog, DiscordUser
 from backend.api.deps import require_owner, get_current_user
