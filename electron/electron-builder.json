@@ -14,6 +14,6 @@
     "target": [{ "target": "portable", "arch": ["x64"] }]
   },
   "portable": {
-    "artifactName": "InfraPanel-Setup.exe"
+    "artifactName": "InfraPanel.exe"
   }
 }

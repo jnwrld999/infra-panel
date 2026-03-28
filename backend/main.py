@@ -29,7 +29,7 @@ async def lifespan(app: FastAPI):
 
 _dev = os.getenv("ENV", "production") != "production"
 app = FastAPI(
-    title="GalaxyCraft Bot Panel API",
+    title="InfraPanel API",
     version=__version__,
     docs_url="/api/docs" if _dev else None,
     redoc_url="/api/redoc" if _dev else None,

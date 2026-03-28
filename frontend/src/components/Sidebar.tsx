@@ -101,7 +101,7 @@ export function Sidebar() {
             {isBotOwner && assignedBot ? (
               <h1 className="text-base font-bold text-primary truncate">{assignedBot.name}</h1>
             ) : (
-              <h1 className="text-base font-bold text-primary truncate">GalaxyCraft Bot Panel</h1>
+              <h1 className="text-base font-bold text-primary truncate">InfraPanel</h1>
             )}
             {version && <span className="text-xs text-muted-foreground font-mono flex-shrink-0">v{version}</span>}
           </div>
