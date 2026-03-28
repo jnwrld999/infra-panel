@@ -67,13 +67,16 @@ def _add_audit_log(db: Session, action: str, actor_id: str | None = None,
 
 
 @router.get("/discord/login")
-async def discord_login():
+async def discord_login(stay: str = "0"):
     """Redirect to Discord OAuth2 authorization page."""
+    # Encode stay preference in state param so callback can read it
+    state = "stay1" if stay == "1" else "stay0"
     params = (
         f"client_id={settings.discord_client_id}"
         f"&redirect_uri={settings.oauth2_redirect_uri}"
         f"&response_type=code"
         f"&scope=identify"
+        f"&state={state}"
     )
     return RedirectResponse(f"{DISCORD_OAUTH_URL}?{params}")
 
@@ -83,6 +86,7 @@ async def discord_callback(
     request: Request,
     code: str | None = None,
     error: str | None = None,
+    state: str | None = None,
     db: Session = Depends(get_db),
 ):
     """Handle Discord OAuth2 callback."""
@@ -166,7 +170,8 @@ async def discord_callback(
 
     _add_audit_log(db, "login_success", actor_id=discord_id, target=username, ip=ip)
 
-    refresh_max_age = settings.jwt_refresh_token_expire_days * 86400
+    stay = state == "stay1"
+    refresh_max_age = 30 * 86400 if stay else settings.jwt_refresh_token_expire_days * 86400
 
     secure = _is_secure()
     response = RedirectResponse(f"{settings.frontend_url}/dashboard")

@@ -1,10 +1,21 @@
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { Toggle } from '@/components/Toggle'
 
 export default function Login() {
   const { t } = useTranslation()
+  const [stayLoggedIn, setStayLoggedIn] = useState(
+    () => localStorage.getItem('infra-stay-logged-in') === '1'
+  )
+
+  const handleStayToggle = (v: boolean) => {
+    setStayLoggedIn(v)
+    localStorage.setItem('infra-stay-logged-in', v ? '1' : '0')
+  }
 
   const handleLogin = () => {
-    window.location.href = '/auth/discord/login'
+    const url = stayLoggedIn ? '/auth/discord/login?stay=1' : '/auth/discord/login'
+    window.location.href = url
   }
 
   return (
@@ -21,6 +32,10 @@ export default function Login() {
           </svg>
           {t('auth.loginWithDiscord')}
         </button>
+        <div className="mt-5 flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">30 Tage angemeldet bleiben</span>
+          <Toggle checked={stayLoggedIn} onChange={handleStayToggle} />
+        </div>
       </div>
     </div>
   )
