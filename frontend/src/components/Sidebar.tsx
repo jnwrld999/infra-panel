@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
-  LayoutDashboard, Server, RefreshCw, Puzzle, Bot as BotIcon,
+  LayoutDashboard, Server, Puzzle, Bot as BotIcon,
   ClipboardCheck, Users, ScrollText, Settings,
   ChevronLeft, ChevronRight, LogOut,
 } from 'lucide-react'
@@ -38,7 +38,6 @@ export function Sidebar() {
   const fullNavItems: NavItem[] = [
     { to: '/', label: t('nav.dashboard'), icon: <LayoutDashboard size={18} /> },
     { to: '/servers', label: t('nav.servers'), icon: <Server size={18} /> },
-    { to: '/sync', label: t('nav.sync'), icon: <RefreshCw size={18} /> },
     { to: '/plugins', label: t('nav.plugins'), icon: <Puzzle size={18} /> },
     { to: '/bots', label: t('nav.bots'), icon: <BotIcon size={18} /> },
     { to: '/approvals', label: t('nav.approvals'), icon: <ClipboardCheck size={18} />, adminOnly: true },
@@ -50,7 +49,6 @@ export function Sidebar() {
   const botOwnerNavItems: NavItem[] = [
     { to: '/bot-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { to: '/plugins', label: 'Plugins', icon: <Puzzle size={18} /> },
-    { to: '/bots', label: 'Bot', icon: <BotIcon size={18} /> },
     { to: '/settings', label: 'Einstellungen', icon: <Settings size={18} /> },
   ]
 
@@ -103,7 +101,7 @@ export function Sidebar() {
             {isBotOwner && assignedBot ? (
               <h1 className="text-base font-bold text-primary truncate">{assignedBot.name}</h1>
             ) : (
-              <h1 className="text-base font-bold text-primary truncate">InfraPanel</h1>
+              <h1 className="text-base font-bold text-primary truncate">GalaxyCraft Bot Panel</h1>
             )}
             {version && <span className="text-xs text-muted-foreground font-mono flex-shrink-0">v{version}</span>}
           </div>

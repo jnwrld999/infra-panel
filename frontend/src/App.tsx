@@ -10,7 +10,6 @@ import Dashboard from '@/pages/Dashboard'
 import Servers from '@/pages/Servers'
 import Plugins from '@/pages/Plugins'
 import Bots from '@/pages/Bots'
-import Sync from '@/pages/Sync'
 import Users from '@/pages/Users'
 import Approvals from '@/pages/Approvals'
 import Logs from '@/pages/Logs'
@@ -68,7 +67,6 @@ export default function App() {
         <Route path="/servers" element={<ProtectedRoute><Servers /></ProtectedRoute>} />
         <Route path="/plugins" element={<ProtectedRoute><Plugins /></ProtectedRoute>} />
         <Route path="/bots" element={<ProtectedRoute><Bots /></ProtectedRoute>} />
-        <Route path="/sync" element={<ProtectedRoute><Sync /></ProtectedRoute>} />
         <Route path="/users" element={<ProtectedRoute><Users /></ProtectedRoute>} />
         <Route path="/approvals" element={<ProtectedRoute><Approvals /></ProtectedRoute>} />
         <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
