@@ -7,8 +7,15 @@ __pycache__/
 *.db-wal
 *.db-shm
 .env
+.env.server
 *.egg-info/
 dist/
 build/
 .coverage
 htmlcov/
+node_modules/
+electron/InfraPanel/
+electron/dist/
+frontend/dist/
+logs/
+*.log
