@@ -17,7 +17,7 @@ function createWindow() {
 ipcMain.on('app:restart', () => {
   // process.env.APPIMAGE is set by the AppImage runtime to the .AppImage file path
   const execPath = process.env.APPIMAGE ?? app.getPath('exe')
-  app.relaunch({ execPath })
+  app.relaunch({ execPath, args: process.argv.slice(1) })
   app.exit(0)
 })
 
