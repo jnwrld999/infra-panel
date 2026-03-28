@@ -22,7 +22,7 @@ def list_minecraft_plugins(
     server_id: int,
     plugins_path: str = "/opt/minecraft/plugins",
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     server = _get_server_or_404(server_id, db)
     svc = PluginService(server)
@@ -76,7 +76,7 @@ def read_file_content(
     server_id: int,
     path: str,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     """Read a file's content via SSH for code viewing. Max 100KB."""
     if ".." in path or ";" in path or "|" in path or "`" in path or "$(" in path:
@@ -95,7 +95,7 @@ def list_files(
     server_id: int,
     path: str,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     """List files in a directory via SSH."""
     if ".." in path or ";" in path or "|" in path or "`" in path or "$(" in path:
@@ -123,12 +123,17 @@ def get_embeds(
         raise HTTPException(status_code=404, detail="Bot not found")
 
     if current_user.role != "owner":
-        whitelisted = db.query(BotWhitelist).filter(
-            BotWhitelist.bot_id == bot_id,
-            BotWhitelist.discord_user_id == current_user.discord_id,
-        ).first()
-        if not whitelisted:
-            raise HTTPException(status_code=403, detail="Access denied")
+        is_bot_owner_of_this = (
+            current_user.role == "bot_owner"
+            and bot.owner_discord_id == current_user.discord_id
+        )
+        if not is_bot_owner_of_this:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
 
     if not bot.server_id:
         return []
@@ -178,12 +183,17 @@ def toggle_discord_cog(
         raise HTTPException(status_code=404, detail="Bot not found")
 
     if current_user.role != "owner":
-        whitelisted = db.query(BotWhitelist).filter(
-            BotWhitelist.bot_id == bot_id,
-            BotWhitelist.discord_user_id == current_user.discord_id,
-        ).first()
-        if not whitelisted:
-            raise HTTPException(status_code=403, detail="Access denied")
+        is_bot_owner_of_this = (
+            current_user.role == "bot_owner"
+            and bot.owner_discord_id == current_user.discord_id
+        )
+        if not is_bot_owner_of_this:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
 
     if not bot.server_id:
         raise HTTPException(status_code=404, detail="Bot has no associated server")

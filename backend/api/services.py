@@ -47,7 +47,7 @@ def service_action(
 def list_docker_containers(
     server_id: int,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     server = _get_server_or_404(server_id, db)
     mgr = ServiceManager(server)
@@ -58,7 +58,7 @@ def list_docker_containers(
 def list_pm2_processes(
     server_id: int,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     server = _get_server_or_404(server_id, db)
     mgr = ServiceManager(server)

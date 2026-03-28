@@ -45,10 +45,21 @@ class EmbedPayload(BaseModel):
     fields: list[EmbedFieldPayload] = []
 
 
+class ButtonPayload(BaseModel):
+    label: str
+    style: int = 1  # 1=Primary, 2=Secondary, 3=Success, 4=Danger, 5=Link
+    custom_id: Optional[str] = None
+    url: Optional[str] = None
+    emoji: Optional[str] = None
+    disabled: bool = False
+
+
 class SendEmbedRequest(BaseModel):
     embed: EmbedPayload
     channel_id: str
     message_id: Optional[str] = None
+    buttons: list[ButtonPayload] = []
+    content: Optional[str] = None
 
 
 def _bot_to_dict(bot: Bot, restricted: bool = False) -> dict:
@@ -318,6 +329,34 @@ def send_embed(
     if non_empty_fields:
         payload_embed["fields"] = non_empty_fields
 
+    message_payload: dict = {}
+    if body.content:
+        message_payload["content"] = body.content
+    message_payload["embeds"] = [payload_embed]
+
+    # Build button action rows (max 5 buttons per row, max 5 rows)
+    if body.buttons:
+        components = []
+        for i in range(0, min(len(body.buttons), 25), 5):
+            row_buttons = body.buttons[i:i+5]
+            row_components = []
+            for btn in row_buttons:
+                b: dict = {
+                    "type": 2,
+                    "style": btn.style,
+                    "label": btn.label,
+                    "disabled": btn.disabled,
+                }
+                if btn.emoji:
+                    b["emoji"] = {"name": btn.emoji}
+                if btn.style == 5:
+                    b["url"] = btn.url or ""
+                else:
+                    b["custom_id"] = btn.custom_id or btn.label.lower().replace(" ", "_")[:100]
+                row_components.append(b)
+            components.append({"type": 1, "components": row_components})
+        message_payload["components"] = components
+
     headers = {"Authorization": f"Bot {token}"}
     channel_id = body.channel_id
     message_id = body.message_id
@@ -326,10 +365,10 @@ def send_embed(
         with httpx.Client(timeout=10) as http:
             if message_id:
                 url = f"https://discord.com/api/v10/channels/{channel_id}/messages/{message_id}"
-                resp = http.patch(url, headers=headers, json={"embeds": [payload_embed]})
+                resp = http.patch(url, headers=headers, json=message_payload)
             else:
                 url = f"https://discord.com/api/v10/channels/{channel_id}/messages"
-                resp = http.post(url, headers=headers, json={"embeds": [payload_embed]})
+                resp = http.post(url, headers=headers, json=message_payload)
 
         if not resp.is_success:
             try:
@@ -343,3 +382,176 @@ def send_embed(
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Discord API unavailable: {exc}")
+
+
+@router.get("/{bot_id}/profile")
+def get_bot_profile(
+    bot_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Fetch bot's Discord profile (username, avatar)."""
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    # Require same access level as the token endpoint
+    if current_user.role != "owner":
+        is_bot_owner_of_this = (
+            current_user.role == "bot_owner"
+            and bot.owner_discord_id == current_user.discord_id
+        )
+        if not is_bot_owner_of_this:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+    if not bot.token_encrypted:
+        return {"username": bot.name, "avatar_url": None}
+    token = decrypt(bot.token_encrypted)
+    try:
+        with httpx.Client(timeout=10) as http:
+            resp = http.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bot {token}"},
+            )
+        if not resp.is_success:
+            return {"username": bot.name, "avatar_url": None}
+        data = resp.json()
+        avatar_url = None
+        if data.get("avatar"):
+            avatar_url = f"https://cdn.discordapp.com/avatars/{data['id']}/{data['avatar']}.png?size=64"
+        return {"username": data.get("username", bot.name), "avatar_url": avatar_url}
+    except Exception:
+        return {"username": bot.name, "avatar_url": None}
+
+
+@router.get("/{bot_id}/channels")
+def get_bot_channels(
+    bot_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Fetch all text channels from all guilds the bot is in."""
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if current_user.role != "owner":
+        is_bot_owner = current_user.role == "bot_owner" and bot.owner_discord_id == current_user.discord_id
+        if not is_bot_owner:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
+    if not bot.token_encrypted:
+        raise HTTPException(status_code=400, detail="Bot has no token")
+    token = decrypt(bot.token_encrypted)
+    headers = {"Authorization": f"Bot {token}"}
+    try:
+        with httpx.Client(timeout=15) as http:
+            guilds_resp = http.get("https://discord.com/api/v10/users/@me/guilds", headers=headers)
+            if not guilds_resp.is_success:
+                raise HTTPException(status_code=502, detail="Could not fetch guilds")
+            guilds = guilds_resp.json()
+            result = []
+            for guild in guilds:
+                ch_resp = http.get(f"https://discord.com/api/v10/guilds/{guild['id']}/channels", headers=headers)
+                if not ch_resp.is_success:
+                    continue
+                for ch in ch_resp.json():
+                    if ch.get("type") in (0, 5):
+                        result.append({
+                            "id": ch["id"],
+                            "name": ch["name"],
+                            "guild_name": guild["name"],
+                            "guild_id": guild["id"],
+                            "position": ch.get("position", 0),
+                        })
+            result.sort(key=lambda c: (c["guild_name"], c["position"]))
+            return result
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/{bot_id}/guilds")
+def get_bot_guilds(
+    bot_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Fetch guilds the bot is in via Discord API."""
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if current_user.role != "owner":
+        is_bot_owner = current_user.role == "bot_owner" and bot.owner_discord_id == current_user.discord_id
+        if not is_bot_owner:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
+    if not bot.token_encrypted:
+        raise HTTPException(status_code=400, detail="Bot has no token")
+    token = decrypt(bot.token_encrypted)
+    try:
+        with httpx.Client(timeout=10) as http:
+            resp = http.get(
+                "https://discord.com/api/v10/users/@me/guilds",
+                headers={"Authorization": f"Bot {token}"},
+            )
+        if not resp.is_success:
+            raise HTTPException(status_code=502, detail="Discord API error")
+        return resp.json()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.get("/{bot_id}/guilds/{guild_id}/channels")
+def get_guild_channels(
+    bot_id: int,
+    guild_id: str,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Fetch text channels for a guild via Discord API."""
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+    if current_user.role != "owner":
+        is_bot_owner = current_user.role == "bot_owner" and bot.owner_discord_id == current_user.discord_id
+        if not is_bot_owner:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
+    if not bot.token_encrypted:
+        raise HTTPException(status_code=400, detail="Bot has no token")
+    token = decrypt(bot.token_encrypted)
+    try:
+        with httpx.Client(timeout=10) as http:
+            resp = http.get(
+                f"https://discord.com/api/v10/guilds/{guild_id}/channels",
+                headers={"Authorization": f"Bot {token}"},
+            )
+        if not resp.is_success:
+            raise HTTPException(status_code=502, detail="Discord API error")
+        channels = resp.json()
+        # Return only text channels (type 0) and announcement channels (type 5)
+        return [c for c in channels if c.get("type") in (0, 5)]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc))

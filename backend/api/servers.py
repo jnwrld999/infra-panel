@@ -1,3 +1,4 @@
+import json
 from typing import Optional
 from datetime import datetime, timezone, timedelta
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
@@ -69,7 +70,7 @@ def _server_to_dict(server: Server) -> dict:
 def list_servers(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     servers = db.query(Server).all()
     stale_threshold = datetime.now(timezone.utc) - timedelta(minutes=2)
@@ -105,7 +106,7 @@ def create_server(
 def get_server(
     server_id: int,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     server = db.query(Server).filter(Server.id == server_id).first()
     if not server:
@@ -149,7 +150,7 @@ def delete_server(
 def test_connection(
     server_id: int,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     server = db.query(Server).filter(Server.id == server_id).first()
     if not server:
@@ -164,10 +165,49 @@ def trigger_health_check(
     server_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: DiscordUser = Depends(get_current_user),
+    current_user: DiscordUser = Depends(require_admin),
 ):
     server = db.query(Server).filter(Server.id == server_id).first()
     if not server:
         raise HTTPException(status_code=404, detail="Server not found")
     background_tasks.add_task(_health_bg, server_id)
     return {"message": "Health check triggered", "server_id": server_id}
+
+
+_STATS_CMD = (
+    "python3 -c \""
+    "import time,json,subprocess;"
+    "s1=list(map(int,open('/proc/stat').readline().split()[1:]));"
+    "time.sleep(0.3);"
+    "s2=list(map(int,open('/proc/stat').readline().split()[1:]));"
+    "idle=s2[3]-s1[3];tot=sum(b-a for a,b in zip(s1,s2));"
+    "cpu=round(100*(1-idle/tot),1) if tot else 0.0;"
+    "lines=open('/proc/meminfo').readlines();"
+    "m={l.split(':')[0]:int(l.split()[1]) for l in lines if ':' in l and len(l.split())>1};"
+    "rt=m.get('MemTotal',0)*1024;"
+    "ru=(m.get('MemTotal',0)-m.get('MemAvailable',m.get('MemFree',0)))*1024;"
+    "r=subprocess.check_output(['df','-B1','/']).decode().splitlines()[1].split();"
+    "print(json.dumps({'cpu':cpu,'ram_used':ru,'ram_total':rt,'disk_used':int(r[2]),'disk_total':int(r[1])}));"
+    "\""
+)
+
+
+@router.get("/{server_id}/stats")
+def get_server_stats(
+    server_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(require_admin),
+):
+    server = db.query(Server).filter(Server.id == server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+    try:
+        with SSHService(server) as svc:
+            result = svc.run_command(_STATS_CMD, timeout=8)
+        if result["exit_code"] != 0 or not result["stdout"].strip():
+            raise HTTPException(status_code=503, detail="Stats unavailable")
+        return json.loads(result["stdout"].strip())
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Stats unavailable: {e}")
