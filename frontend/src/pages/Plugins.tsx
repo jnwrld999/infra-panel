@@ -57,7 +57,12 @@ export default function Plugins() {
   }
 
   useEffect(() => {
-    client.get<Bot[]>('/bots/').then((r) => {
+    const { prefetchedBots } = useAuthStore.getState()
+    const source = prefetchedBots
+      ? Promise.resolve({ data: prefetchedBots as unknown as Bot[] })
+      : client.get<Bot[]>('/bots/')
+
+    source.then((r) => {
       const nonRestricted = r.data.filter((b) => !b.restricted && b.server_id)
       const savedPaths = getSavedPaths()
       const configs = nonRestricted.map((b) => ({
