@@ -17,6 +17,34 @@ interface Bot {
 
 interface Plugin { name: string; filename: string; status: string; type: string }
 
+const BOT_DEFAULT_PATHS: Record<number, string> = {
+  1: '/root/Discord Bots/AxellottenTV',
+  2: '/root/Discord Bots/GalaxycraftBots/GalaxycraftBot',
+  3: '/root/Discord Bots/GalaxycraftBots/gc-bot',
+  4: '/root/Discord Bots/GalaxycraftBots/TicketBot',
+  5: '/root/Discord Bots/GalaxycraftBots/GalaxycraftVerify',
+  6: '/root/Discord Bots/NovaBot',
+  7: '/root/Discord Bots/BeardedBot',
+  8: '/root/Discord Bots/Mursrtx-Bot',
+}
+
+const PATHS_KEY = 'infra-plugin-paths'
+function getBotPath(botId: number): string {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PATHS_KEY) || '{}')
+    return saved[`bot_${botId}`] || BOT_DEFAULT_PATHS[botId] || `/root/Discord Bots/${botId}`
+  } catch {
+    return BOT_DEFAULT_PATHS[botId] || `/root/Discord Bots/${botId}`
+  }
+}
+
+function cogFilePath(botId: number, cog: Plugin): string {
+  const base = getBotPath(botId)
+  if (cog.type === 'java') return `${base}/src/main/java/main/${cog.filename}`
+  if (cog.type === 'nodejs') return `${base}/src/${cog.filename}`
+  return `${base}/cogs/${cog.filename}`
+}
+
 interface BotCreate {
   name: string
   server_id: number | ''
@@ -95,7 +123,8 @@ export default function Bots() {
 
   const loadCogs = (botId: number) => {
     setCogsLoading((prev) => ({ ...prev, [botId]: true }))
-    client.get<Plugin[]>(`/plugins/discord-bot/${botId}`)
+    const botPath = getBotPath(botId)
+    client.get<Plugin[]>(`/plugins/discord-bot/${botId}?bot_path=${encodeURIComponent(botPath)}`)
       .then((r) => setCogs((prev) => ({ ...prev, [botId]: r.data })))
       .catch(() => setCogs((prev) => ({ ...prev, [botId]: [] })))
       .finally(() => setCogsLoading((prev) => ({ ...prev, [botId]: false })))
@@ -307,7 +336,7 @@ export default function Bots() {
                 {!cogsLoading[bot.id] && cogs[bot.id] && cogs[bot.id].length > 0 && (
                   <div className="divide-y divide-border">
                     {cogs[bot.id].map((cog) => {
-                      const filePath = `/opt/bots/${bot.name}/cogs/${cog.filename}`
+                      const filePath = cogFilePath(bot.id, cog)
                       return (
                         <div key={cog.filename} className="flex items-center justify-between px-5 py-2.5 hover:bg-muted/20 transition-colors">
                           <div className="flex items-center gap-3 min-w-0">

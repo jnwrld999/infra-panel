@@ -9,16 +9,14 @@ interface Bot { id: number; name: string; server_id?: number; status?: string; r
 interface BotCogConfig { botId: number; botName: string; serverId: number; botPath: string; cogs: Plugin[]; loading: boolean; error?: string | null }
 
 const BOT_DEFAULT_PATHS: Record<number, string> = {
-  1:  '/root/AxellottenTV',
-  2:  '/root/JuiceBots-Website',
-  6:  '/home/juice/HarryoeBot',
-  7:  '/home/juice/CarstenBot',
-  8:  '/home/juice/Asker',
-  9:  '/root/AmongUSBot',
-  10: '/root/NovaBot',
-  11: '/root/MursrtxBot',
-  12: '/root/BeardedBot',
-  13: '/root/Mursrtx-Bot',
+  1: '/root/Discord Bots/AxellottenTV',
+  2: '/root/Discord Bots/GalaxycraftBots/GalaxycraftBot',
+  3: '/root/Discord Bots/GalaxycraftBots/gc-bot',
+  4: '/root/Discord Bots/GalaxycraftBots/TicketBot',
+  5: '/root/Discord Bots/GalaxycraftBots/GalaxycraftVerify',
+  6: '/root/Discord Bots/NovaBot',
+  7: '/root/Discord Bots/BeardedBot',
+  8: '/root/Discord Bots/Mursrtx-Bot',
 }
 
 const PATHS_KEY = 'infra-plugin-paths'

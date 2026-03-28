@@ -137,7 +137,7 @@ def list_discord_bot_cogs(
         raise HTTPException(status_code=404, detail="Server not found")
 
     svc = PluginService(server)
-    resolved_path = bot_path if bot_path else f"/home/juice/MeinUbuntuServer/{bot.name}"
+    resolved_path = bot_path if bot_path else f"/root/Discord Bots/{bot.name}"
     try:
         return svc.list_discord_bot_cogs(resolved_path)
     except RuntimeError as e:
