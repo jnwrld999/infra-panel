@@ -58,7 +58,7 @@ export default function Plugins() {
 
   useEffect(() => {
     const { prefetchedBots } = useAuthStore.getState()
-    const source = prefetchedBots
+    const source = Array.isArray(prefetchedBots) && prefetchedBots.length >= 0
       ? Promise.resolve({ data: prefetchedBots as unknown as Bot[] })
       : client.get<Bot[]>('/bots/')
 

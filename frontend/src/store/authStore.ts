@@ -35,8 +35,8 @@ export const useAuthStore = create<AuthState>((set) => ({
       const resp = await axios.get('/auth/me', { withCredentials: true })
       set({ user: resp.data, loading: false })
       // Prefetch bots in background so Plugins page isn't empty on first visit
-      axios.get<BotSummary[]>('/bots/', { withCredentials: true })
-        .then((r) => set({ prefetchedBots: r.data }))
+      axios.get<BotSummary[]>('/api/bots/', { withCredentials: true })
+        .then((r) => set({ prefetchedBots: Array.isArray(r.data) ? r.data : null }))
         .catch(() => {})
     } catch {
       set({ user: null, loading: false })
