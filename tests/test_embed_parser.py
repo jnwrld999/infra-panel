@@ -111,3 +111,16 @@ embed2 = discord.Embed(title="Second")
     assert len(result) == 2
     assert result[0]["title"] == "First"
     assert result[1]["title"] == "Second"
+
+
+def test_parse_python_field_isolation():
+    source = """
+embed1 = discord.Embed(title="First")
+embed1.add_field(name="F1", value="V1", inline=True)
+embed2 = discord.Embed(title="Second")
+embed2.add_field(name="F2", value="V2", inline=False)
+"""
+    result = parse_embeds(source, "python")
+    assert len(result) == 2
+    assert result[0]["fields"] == [{"name": "F1", "value": "V1", "inline": True}]
+    assert result[1]["fields"] == [{"name": "F2", "value": "V2", "inline": False}]

@@ -8,17 +8,11 @@ def _extract_string_kwarg(text: str, key: str) -> Optional[str]:
     return m.group(1) if m else None
 
 
-def _extract_string_arg(text: str) -> Optional[str]:
-    """Extract the first literal string positional argument."""
-    m = re.match(r'\s*["\']([^"\'\\]*(?:\\.[^"\'\\]*)*)["\']', text)
-    return m.group(1) if m else None
-
-
 def _parse_python(source: str) -> list[dict]:
     embeds = []
     for m in re.finditer(r'(\w+)\s*=\s*discord\.Embed\(', source):
         var = m.group(1)
-        window = source[m.start():m.start() + 600]
+        window = source[m.start():m.start() + 1500]
 
         color = None
         color_m = re.search(r'colou?r\s*=\s*(0x[0-9a-fA-F]+|\d+)', window)
@@ -28,17 +22,22 @@ def _parse_python(source: str) -> list[dict]:
             except ValueError:
                 pass
 
+        # Find where the next embed starts (to bound method searches)
+        next_m = re.search(r'\w+\s*=\s*discord\.Embed\(', source[m.end():])
+        end_pos = m.end() + next_m.start() if next_m else len(source)
+        embed_region = source[m.start():end_pos]
+
         fields = []
         for fm in re.finditer(
-            rf'{re.escape(var)}\.add_field\(\s*name\s*=\s*["\']([^"\']*)["\'][^)]*'
+            rf'\.add_field\(\s*name\s*=\s*["\']([^"\']*)["\'][^)]*'
             rf'value\s*=\s*["\']([^"\']*)["\'][^)]*inline\s*=\s*(True|False)',
-            source,
+            embed_region,
         ):
             fields.append({"name": fm.group(1), "value": fm.group(2), "inline": fm.group(3) == "True"})
 
-        def _method_str(method: str, kwarg: str) -> Optional[str]:
-            pat = rf'{re.escape(var)}\.{method}\(\s*{kwarg}\s*=\s*["\']([^"\']*)["\']'
-            fm = re.search(pat, source)
+        def _method_str(method: str, kwarg: str, _region: str = embed_region) -> Optional[str]:
+            pat = rf'\.{method}\(\s*{kwarg}\s*=\s*["\']([^"\']*)["\']'
+            fm = re.search(pat, _region)
             return fm.group(1) if fm else None
 
         embeds.append({
@@ -89,8 +88,8 @@ def _parse_java(source: str) -> list[dict]:
         for fm in re.finditer(r'\.addField\(\s*"([^"]*)"\s*,\s*"([^"]*)"\s*,\s*(true|false)', chain):
             fields.append({"name": fm.group(1), "value": fm.group(2), "inline": fm.group(3) == "true"})
 
-        def _chain_str(method: str) -> Optional[str]:
-            fm = re.search(rf'\.{method}\(\s*"([^"]*)"', chain)
+        def _chain_str(method: str, _chain: str = chain) -> Optional[str]:
+            fm = re.search(rf'\.{method}\(\s*"([^"]*)"', _chain)
             return fm.group(1) if fm else None
 
         embeds.append({
@@ -126,18 +125,18 @@ def _parse_nodejs(source: str) -> list[dict]:
         ):
             fields.append({"name": fm.group(1), "value": fm.group(2), "inline": fm.group(3) == "true"})
 
-        def _chain_str(pattern: str) -> Optional[str]:
-            fm = re.search(pattern, chain)
+        def _chain_str(pattern: str, _chain: str = chain) -> Optional[str]:
+            fm = re.search(pattern, _chain)
             return fm.group(1) if fm else None
 
         embeds.append({
-            "title": _chain_str(r'\.setTitle\(\s*["\']([^"\'"]*)'),
-            "description": _chain_str(r'\.setDescription\(\s*["\']([^"\'"]*)'),
+            "title": _chain_str(r'\.setTitle\(\s*["\']([^"\']*)'),
+            "description": _chain_str(r'\.setDescription\(\s*["\']([^"\']*)'),
             "color": color,
-            "author": _chain_str(r'\.setAuthor\(\s*\{\s*name\s*:\s*["\']([^"\'"]*)'),
-            "footer": _chain_str(r'\.setFooter\(\s*\{\s*text\s*:\s*["\']([^"\'"]*)'),
-            "image": _chain_str(r'\.setImage\(\s*["\']([^"\'"]*)'),
-            "thumbnail": _chain_str(r'\.setThumbnail\(\s*["\']([^"\'"]*)'),
+            "author": _chain_str(r'\.setAuthor\(\s*\{\s*name\s*:\s*["\']([^"\']*)'),
+            "footer": _chain_str(r'\.setFooter\(\s*\{\s*text\s*:\s*["\']([^"\']*)'),
+            "image": _chain_str(r'\.setImage\(\s*["\']([^"\']*)'),
+            "thumbnail": _chain_str(r'\.setThumbnail\(\s*["\']([^"\']*)'),
             "fields": fields,
         })
     return embeds
