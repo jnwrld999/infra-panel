@@ -1,9 +1,11 @@
 from datetime import datetime, timezone
 from typing import Optional
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
+from backend.config import settings
 from backend.db.session import get_db
 from backend.db.models import Approval, AuditLog, DiscordUser
 from backend.api.deps import require_owner, get_current_user
@@ -111,21 +113,29 @@ def review_approval(
     db.commit()
     db.refresh(approval)
 
-    # Best-effort DM to submitter
-    if body.status in ("approved", "denied"):
+    # Best-effort DM to submitter via Discord REST API
+    if body.status in ("approved", "denied") and settings.discord_bot_token:
         dm_msg = body.dm_message or (
             "✅ Deine Anfrage wurde **genehmigt**." if body.status == "approved"
             else "❌ Deine Anfrage wurde **abgelehnt**."
         )
         try:
-            import asyncio
-            from backend.discord_bot.bot import send_dm as _send_dm
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                loop.create_task(_send_dm(approval.submitted_by, dm_msg))
-            else:
-                asyncio.run(_send_dm(approval.submitted_by, dm_msg))
+            headers = {"Authorization": f"Bot {settings.discord_bot_token}"}
+            with httpx.Client(timeout=5) as http:
+                # Open DM channel
+                ch = http.post(
+                    "https://discord.com/api/v10/users/@me/channels",
+                    headers=headers,
+                    json={"recipient_id": approval.submitted_by},
+                )
+                if ch.is_success:
+                    channel_id = ch.json()["id"]
+                    http.post(
+                        f"https://discord.com/api/v10/channels/{channel_id}/messages",
+                        headers=headers,
+                        json={"content": dm_msg},
+                    )
         except Exception:
-            pass  # Bot not running — skip DM silently
+            pass  # Network error — skip DM silently
 
     return approval

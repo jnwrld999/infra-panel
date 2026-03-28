@@ -4,7 +4,7 @@ import { persist } from 'zustand/middleware'
 export type Theme = 'dark' | 'light' | 'monokai' | 'dracula' | 'nord' | 'solarized' | 'catppuccin' | 'onedark'
 type FontSize = 'small' | 'normal' | 'large'
 
-export type PanelType = 'servers' | 'approvals' | 'errors' | 'sync' | 'users'
+export type PanelType = 'servers' | 'approvals' | 'errors' | 'users'
 
 interface UIState {
   theme: Theme

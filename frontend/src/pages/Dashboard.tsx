@@ -10,14 +10,12 @@ import { useUserName } from '@/hooks/useUserName'
 interface Server { id: number; name: string; host: string; port: number; status: string; tags: string[] }
 interface Approval { id: number; type: string; submitted_by: string }
 interface LogEntry { id: number; timestamp: string; level: string; category: string; message: string }
-interface SyncJob { id: number; status: string; server_id: number; completed_at: string | null; type: string }
 interface DashboardUser { id: number; username: string; role: string; active: boolean }
 
 const PANEL_DEFINITIONS: Record<PanelType, { label: string; icon: string }> = {
   servers:   { label: 'Server Status',         icon: '🖥️'  },
   approvals: { label: 'Ausstehende Freigaben', icon: '📋'  },
   errors:    { label: 'Fehler (24h)',           icon: '⚠️'  },
-  sync:      { label: 'Letzte Synchronisation', icon: '🔄'  },
   users:     { label: 'Nutzer',                  icon: '👥'  },
 }
 
@@ -77,29 +75,6 @@ function ErrorsPanel({ errors }: { errors: LogEntry[] }) {
   )
 }
 
-function SyncPanel({ jobs }: { jobs: SyncJob[] }) {
-  const recent = jobs
-    .filter((j) => j.completed_at)
-    .sort((a, b) => new Date(b.completed_at!).getTime() - new Date(a.completed_at!).getTime())
-    .slice(0, 5)
-  return (
-    <div>
-      {recent.map((job) => (
-        <div key={job.id} className="py-1.5 border-b border-border last:border-0">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-foreground capitalize">{job.type}</span>
-            <span className={`text-xs px-1.5 py-0.5 rounded-full ${job.status === 'success' ? 'bg-green-500/15 text-green-400' : job.status === 'running' ? 'bg-yellow-500/15 text-yellow-400' : 'bg-red-500/15 text-red-400'}`}>
-              {job.status}
-            </span>
-          </div>
-          <div className="text-xs text-muted-foreground">{new Date(job.completed_at!).toLocaleString('de-DE')}</div>
-        </div>
-      ))}
-      {recent.length === 0 && <p className="text-sm text-muted-foreground">Keine Sync-Jobs</p>}
-    </div>
-  )
-}
-
 function UsersPanel({ users }: { users: DashboardUser[] }) {
   return (
     <div>
@@ -123,7 +98,6 @@ interface PanelData {
   servers: Server[]
   approvals: Approval[]
   errors: LogEntry[]
-  sync: SyncJob[]
   users: DashboardUser[]
 }
 
@@ -147,7 +121,6 @@ function Panel({
       case 'servers':   return <ServersPanel servers={data.servers} />
       case 'approvals': return <ApprovalsPanel approvals={data.approvals} />
       case 'errors':    return <ErrorsPanel errors={data.errors} />
-      case 'sync':      return <SyncPanel jobs={data.sync} />
       case 'users':     return <UsersPanel users={data.users} />
     }
   }
@@ -185,14 +158,13 @@ export default function Dashboard() {
   const { dashboardPanels, setDashboardPanels } = useUIStore()
   const [editMode, setEditMode] = useState(false)
   const [data, setData] = useState<PanelData>({
-    servers: [], approvals: [], errors: [], sync: [], users: [],
+    servers: [], approvals: [], errors: [], users: [],
   })
 
   useEffect(() => {
     client.get('/servers/').then((r) => setData((d) => ({ ...d, servers: r.data }))).catch(() => {})
     client.get('/approvals/pending').then((r) => setData((d) => ({ ...d, approvals: r.data }))).catch(() => {})
     client.get('/logs/?level=ERROR&days=1&limit=20').then((r) => setData((d) => ({ ...d, errors: r.data }))).catch(() => {})
-    client.get('/sync/').then((r) => setData((d) => ({ ...d, sync: r.data }))).catch(() => {})
     client.get('/users/').then((r) => setData((d) => ({ ...d, users: r.data }))).catch(() => {})
   }, [])
 
