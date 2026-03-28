@@ -5,6 +5,7 @@ from backend.db.session import get_db
 from backend.db.models import Server, Bot, BotWhitelist, DiscordUser
 from backend.api.deps import get_current_user, require_admin
 from backend.services.plugin_service import PluginService
+from backend.services.embed_parser import parse_embeds
 
 router = APIRouter(prefix="/api/plugins", tags=["plugins"])
 
@@ -106,6 +107,59 @@ def list_files(
     return {"files": files, "path": path}
 
 
+@router.get("/embeds")
+def get_embeds(
+    bot_id: int,
+    file_path: str,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Parse embed definitions from a bot cog source file."""
+    if ".." in file_path or ";" in file_path or "|" in file_path or "`" in file_path or "$(" in file_path:
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    if current_user.role != "owner":
+        whitelisted = db.query(BotWhitelist).filter(
+            BotWhitelist.bot_id == bot_id,
+            BotWhitelist.discord_user_id == current_user.discord_id,
+        ).first()
+        if not whitelisted:
+            raise HTTPException(status_code=403, detail="Access denied")
+
+    if not bot.server_id:
+        return []
+
+    server = db.query(Server).filter(Server.id == bot.server_id).first()
+    if not server:
+        return []
+
+    from backend.services.ssh_service import SSHService
+
+    try:
+        with SSHService(server) as ssh:
+            result = ssh.run_command(f"head -c 102400 {shlex.quote(file_path)}")
+        if not result.get("success"):
+            return []
+        source = result.get("stdout", "")
+    except Exception:
+        return []
+
+    if file_path.endswith(".py"):
+        language = "python"
+    elif file_path.endswith(".java"):
+        language = "java"
+    elif file_path.endswith((".js", ".ts")):
+        language = "nodejs"
+    else:
+        language = "unknown"
+
+    return parse_embeds(source, language)
+
+
 @router.get("/discord-bot/{bot_id}")
 def list_discord_bot_cogs(
     bot_id: int,
@@ -117,7 +171,6 @@ def list_discord_bot_cogs(
     if not bot:
         raise HTTPException(status_code=404, detail="Bot not found")
 
-    # Check access: owner can always access; others need to be in whitelist
     if current_user.role != "owner":
         whitelisted = db.query(BotWhitelist).filter(
             BotWhitelist.bot_id == bot_id,
