@@ -171,6 +171,17 @@ interface ChangelogEntry { version: string; date: string; changes: ChangelogItem
 
 const CHANGELOG: ChangelogEntry[] = [
   {
+    version: '1.3.0', date: '2026-03-28',
+    changes: [
+      { type: 'improvement', de: 'Umbenennung zu InfraPanel', en: 'Renamed to InfraPanel' },
+      { type: 'feature', de: 'Update-Benachrichtigung bei neuer Version', en: 'Update notification for new versions' },
+      { type: 'fix', de: 'Update-Badge in TopBar per GitHub Releases API', en: 'Update badge in TopBar via GitHub Releases API' },
+      { type: 'fix', de: 'DM-Versand über Discord REST API (kein Bot-Import mehr)', en: 'DM sending via Discord REST API (no bot import)' },
+      { type: 'improvement', de: 'Toten Sync-Code vollständig entfernt', en: 'Dead sync code fully removed' },
+      { type: 'feature', de: 'Desktop-App: direkte Verbindung zum Remote-Server', en: 'Desktop app: direct connection to remote server' },
+    ],
+  },
+  {
     version: '1.2.0', date: '2026-03-26',
     changes: [
       { type: 'feature', de: 'Bot-Zugriff pro Nutzer verwalten', en: 'Manage bot access per user' },

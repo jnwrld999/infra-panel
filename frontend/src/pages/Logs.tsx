@@ -4,12 +4,11 @@ import client from '@/api/client'
 import { useUIStore } from '@/store/uiStore'
 import { getDevLogs, clearDevLogs, type DevLogEntry } from '@/lib/devLog'
 
-type LogCategory = 'system' | 'error' | 'sync' | 'audit' | 'dev'
+type LogCategory = 'system' | 'error' | 'audit' | 'dev'
 
 const CATEGORIES: { key: LogCategory; label: string; dotClass: string; textClass: string }[] = [
   { key: 'system', label: 'System',  dotClass: 'bg-muted-foreground', textClass: 'text-muted-foreground' },
   { key: 'error',  label: 'Fehler',  dotClass: 'bg-red-400',          textClass: 'text-red-400' },
-  { key: 'sync',   label: 'Sync',    dotClass: 'bg-blue-400',         textClass: 'text-blue-400' },
   { key: 'audit',  label: 'Audit',   dotClass: 'bg-purple-400',       textClass: 'text-purple-400' },
   { key: 'dev',    label: 'Dev',     dotClass: 'bg-yellow-400',       textClass: 'text-yellow-400' },
 ]
@@ -40,7 +39,6 @@ export default function Logs() {
     const params: Record<string, string> = { limit: '100' }
     if (category === 'error') params.level = 'ERROR'
     else if (category === 'system') params.level = 'INFO'
-    else if (category === 'sync') params.category = 'sync'
     else if (category === 'audit') params.category = 'audit'
 
     const query = new URLSearchParams(params).toString()
