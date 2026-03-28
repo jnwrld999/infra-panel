@@ -11,9 +11,6 @@ interface BotCogConfig { botId: number; botName: string; serverId: number; botPa
 const BOT_DEFAULT_PATHS: Record<number, string> = {
   1:  '/root/AxellottenTV',
   2:  '/root/JuiceBots-Website',
-  3:  '/root/GalaxycraftBots/GalaxycraftBot',
-  4:  '/root/GalaxycraftBots/TicketBot',
-  5:  '/root/GalaxycraftBots/GalaxycraftVerify',
   6:  '/home/juice/HarryoeBot',
   7:  '/home/juice/CarstenBot',
   8:  '/home/juice/Asker',
