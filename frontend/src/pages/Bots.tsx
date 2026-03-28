@@ -83,6 +83,65 @@ interface BotCreate {
 
 interface Server { id: number; name: string }
 
+function EmbedPreview({ embed }: { embed: EmbedData }) {
+  const borderColor = embed.color ? colorToHex(embed.color) : '#5865f2'
+
+  return (
+    <div className="rounded-lg p-2" style={{ backgroundColor: '#1e1f22' }}>
+      <div
+        className="rounded overflow-hidden relative"
+        style={{ borderLeft: `4px solid ${borderColor}`, backgroundColor: '#2b2d31' }}
+      >
+        {embed.thumbnail && (
+          <img
+            src={embed.thumbnail}
+            alt=""
+            className="absolute top-3 right-3 w-16 h-16 rounded object-cover"
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        )}
+        <div className={`p-3 ${embed.thumbnail ? 'pr-20' : ''}`}>
+          {embed.author && (
+            <p className="text-xs mb-1" style={{ color: '#b5bac1' }}>{embed.author}</p>
+          )}
+          {embed.title && (
+            <p className="text-sm font-bold mb-1 text-white">{embed.title}</p>
+          )}
+          {embed.description && (
+            <p className="text-xs mb-2 whitespace-pre-wrap" style={{ color: '#dbdee1' }}>
+              {embed.description}
+            </p>
+          )}
+          {embed.fields.length > 0 && (
+            <div className="grid grid-cols-3 gap-x-4 gap-y-2 mb-2">
+              {embed.fields.map((f, i) => (
+                <div key={i} className={f.inline ? '' : 'col-span-3'}>
+                  <p className="text-xs font-bold text-white">{f.name || '\u200b'}</p>
+                  <p className="text-xs" style={{ color: '#dbdee1' }}>{f.value || '\u200b'}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {embed.image && (
+            <img
+              src={embed.image}
+              alt=""
+              className="w-full rounded mt-2 max-h-48 object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+            />
+          )}
+          {embed.footer && (
+            <p className="text-xs mt-2" style={{ color: '#949ba4' }}>{embed.footer}</p>
+          )}
+          {!embed.title && !embed.description && !embed.author && embed.fields.length === 0 && !embed.footer && (
+            <p className="text-xs italic" style={{ color: '#949ba4' }}>Vorschau erscheint hier…</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Bots() {
   const { user } = useAuthStore()
   const previewUser = (useUIStore as any)((s: any) => s.previewUser) ?? null
@@ -587,6 +646,240 @@ export default function Bots() {
             <div className="flex-1 overflow-auto p-4 min-h-0">
               <pre className="text-xs font-mono text-foreground whitespace-pre-wrap leading-relaxed">{fileViewer.content || '(leer)'}</pre>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Embed modal */}
+      {embedModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+              <div>
+                <h3 className="font-semibold text-foreground text-sm">
+                  Embeds — {embedModal.cog.name}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{embedModal.bot.name}</p>
+              </div>
+              <button
+                onClick={() => setEmbedModal(null)}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {embedsLoading ? (
+              <div className="flex-1 flex items-center justify-center py-12">
+                <Loader size={20} className="animate-spin text-muted-foreground" />
+              </div>
+            ) : (
+              <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+                {/* Tabs if multiple embeds */}
+                {embeds.length > 1 && (
+                  <div className="flex gap-1 px-5 pt-3 flex-shrink-0 border-b border-border">
+                    {embeds.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setActiveEmbedIdx(i)}
+                        className={`px-3 py-1.5 text-xs rounded-t-md transition-colors ${
+                          activeEmbedIdx === i
+                            ? 'bg-primary/10 text-primary border border-primary/30 border-b-0'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        Embed {i + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Two-column layout */}
+                <div className="flex-1 overflow-hidden flex min-h-0">
+                  {/* Left: Editor */}
+                  <div className="flex-1 overflow-y-auto p-4 border-r border-border space-y-3">
+                    {embeds[activeEmbedIdx] && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Titel</label>
+                          <input
+                            type="text"
+                            value={embeds[activeEmbedIdx].title ?? ''}
+                            onChange={(e) => updateEmbed(activeEmbedIdx, { title: e.target.value || null })}
+                            placeholder="Embed-Titel"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Beschreibung</label>
+                          <textarea
+                            value={embeds[activeEmbedIdx].description ?? ''}
+                            onChange={(e) => updateEmbed(activeEmbedIdx, { description: e.target.value || null })}
+                            placeholder="Embed-Beschreibung"
+                            rows={3}
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Farbe</label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={colorToHex(embeds[activeEmbedIdx].color)}
+                              onChange={(e) => updateEmbed(activeEmbedIdx, { color: hexToColor(e.target.value) })}
+                              placeholder="#5865f2"
+                              maxLength={7}
+                              className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                            />
+                            <input
+                              type="color"
+                              value={colorToHex(embeds[activeEmbedIdx].color) || '#5865f2'}
+                              onChange={(e) => updateEmbed(activeEmbedIdx, { color: hexToColor(e.target.value) })}
+                              className="w-10 h-10 rounded-lg border border-border cursor-pointer bg-background p-0.5"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Autor</label>
+                          <input
+                            type="text"
+                            value={embeds[activeEmbedIdx].author ?? ''}
+                            onChange={(e) => updateEmbed(activeEmbedIdx, { author: e.target.value || null })}
+                            placeholder="Autor-Name"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Footer</label>
+                          <input
+                            type="text"
+                            value={embeds[activeEmbedIdx].footer ?? ''}
+                            onChange={(e) => updateEmbed(activeEmbedIdx, { footer: e.target.value || null })}
+                            placeholder="Footer-Text"
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Thumbnail URL</label>
+                          <input
+                            type="text"
+                            value={embeds[activeEmbedIdx].thumbnail ?? ''}
+                            onChange={(e) => updateEmbed(activeEmbedIdx, { thumbnail: e.target.value || null })}
+                            placeholder="https://..."
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Bild URL</label>
+                          <input
+                            type="text"
+                            value={embeds[activeEmbedIdx].image ?? ''}
+                            onChange={(e) => updateEmbed(activeEmbedIdx, { image: e.target.value || null })}
+                            placeholder="https://..."
+                            className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                        </div>
+
+                        {/* Fields */}
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide">Felder</label>
+                            <button
+                              onClick={() => addEmbedField(activeEmbedIdx)}
+                              className="text-xs text-primary hover:text-primary/80 transition-colors"
+                            >
+                              + Feld hinzufügen
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {embeds[activeEmbedIdx].fields.map((field, fi) => (
+                              <div key={fi} className="border border-border rounded-lg p-2 space-y-2 bg-muted/10">
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={field.name}
+                                    onChange={(e) => updateEmbedField(activeEmbedIdx, fi, { name: e.target.value })}
+                                    placeholder="Feldname"
+                                    className="flex-1 bg-background border border-border rounded px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                  />
+                                  <button
+                                    onClick={() => removeEmbedField(activeEmbedIdx, fi)}
+                                    className="p-1.5 rounded text-muted-foreground hover:text-red-400 hover:bg-red-400/10 transition-colors"
+                                  >
+                                    <X size={12} />
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={field.value}
+                                  onChange={(e) => updateEmbedField(activeEmbedIdx, fi, { value: e.target.value })}
+                                  placeholder="Feldwert"
+                                  className="w-full bg-background border border-border rounded px-2 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                                />
+                                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none">
+                                  <input
+                                    type="checkbox"
+                                    checked={field.inline}
+                                    onChange={(e) => updateEmbedField(activeEmbedIdx, fi, { inline: e.target.checked })}
+                                    className="rounded"
+                                  />
+                                  Inline
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Send section */}
+                        <div className="border-t border-border pt-3 space-y-2">
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Channel ID *</label>
+                            <input
+                              type="text"
+                              value={channelId}
+                              onChange={(e) => { setChannelId(e.target.value); setSendStatus('idle') }}
+                              placeholder="123456789012345678"
+                              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wide mb-1">Message ID</label>
+                            <input
+                              type="text"
+                              value={messageId}
+                              onChange={(e) => { setMessageId(e.target.value); setSendStatus('idle') }}
+                              placeholder="Leer lassen für neue Nachricht"
+                              className="w-full bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 font-mono"
+                            />
+                          </div>
+                          <button
+                            onClick={sendEmbed}
+                            disabled={!channelId.trim() || sendStatus === 'sending'}
+                            className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-opacity flex items-center justify-center gap-2"
+                          >
+                            {sendStatus === 'sending' && <Loader size={13} className="animate-spin" />}
+                            {messageId.trim() ? 'Nachricht bearbeiten' : 'Nachricht senden'}
+                          </button>
+                          {sendStatus === 'ok' && (
+                            <p className="text-xs text-green-400">Erfolgreich gesendet!</p>
+                          )}
+                          {sendStatus === 'error' && (
+                            <p className="text-xs text-red-400">{sendError}</p>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Right: Preview */}
+                  <div className="w-80 flex-shrink-0 overflow-y-auto p-4">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Vorschau</p>
+                    {embeds[activeEmbedIdx] && <EmbedPreview embed={embeds[activeEmbedIdx]} />}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
