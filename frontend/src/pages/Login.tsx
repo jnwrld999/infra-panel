@@ -11,7 +11,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="bg-card border border-border rounded-lg p-10 w-full max-w-sm text-center shadow-xl">
         <h1 className="text-3xl font-bold text-foreground mb-2">InfraPanel</h1>
-        <p className="text-muted-foreground text-sm mb-8">Infrastructure Management</p>
+        <p className="text-muted-foreground text-sm mb-8">Bot Management Panel</p>
         <button
           onClick={handleLogin}
           className="inline-flex items-center gap-3 px-6 py-3 rounded-lg bg-[#5865F2] hover:bg-[#4752c4] text-white font-semibold transition-colors w-full justify-center"
