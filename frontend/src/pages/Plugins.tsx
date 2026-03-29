@@ -92,6 +92,11 @@ export default function Plugins() {
   const [sendError, setSendError] = useState('')
 
   const [togglingCog, setTogglingCog] = useState<Record<string, boolean>>({})
+  const [pendingToggle, setPendingToggle] = useState<{
+    config: BotCogConfig
+    cog: Plugin
+    enable: boolean
+  } | null>(null)
 
   const toggleCog = (config: BotCogConfig, cog: Plugin) => {
     const key = `${config.botId}-${cog.filename}`
@@ -369,7 +374,7 @@ export default function Plugins() {
                           <div className="flex items-center gap-1">
                             {(cog.type === 'discord_cog' || cog.type === 'nodejs') && (
                               <button
-                                onClick={() => toggleCog(activeConfig, cog)}
+                                onClick={() => setPendingToggle({ config: activeConfig, cog, enable: cog.status === 'disabled' })}
                                 disabled={!!togglingCog[`${activeConfig.botId}-${cog.filename}`]}
                                 className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
                                   cog.status === 'disabled'
@@ -416,7 +421,7 @@ export default function Plugins() {
                           <div className="flex items-center gap-1">
                             {(cog.type === 'discord_cog' || cog.type === 'nodejs') && (
                               <button
-                                onClick={() => toggleCog(activeConfig, cog)}
+                                onClick={() => setPendingToggle({ config: activeConfig, cog, enable: cog.status === 'disabled' })}
                                 disabled={!!togglingCog[`${activeConfig.botId}-${cog.filename}`]}
                                 className={`flex items-center gap-1 px-2 py-1 rounded-md text-xs transition-colors ${
                                   cog.status === 'disabled'
@@ -607,6 +612,62 @@ export default function Plugins() {
             </div>
             <div className="flex-1 overflow-auto p-4 min-h-0">
               <pre className="text-xs font-mono text-foreground whitespace-pre-wrap leading-relaxed">{fileViewer.content || '(leer)'}</pre>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toggle confirmation modal */}
+      {pendingToggle && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setPendingToggle(null)}
+        >
+          <div
+            className="bg-card border border-border rounded-xl w-full max-w-sm mx-4 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-8 h-8 rounded-lg bg-yellow-500/10 flex items-center justify-center flex-shrink-0">
+                <AlertCircle size={16} className="text-yellow-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-foreground">
+                  {pendingToggle.enable ? 'Cog aktivieren?' : 'Cog deaktivieren?'}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  <span className="font-medium text-foreground">{pendingToggle.cog.name}</span>
+                  {pendingToggle.enable
+                    ? ' wird beim nächsten Bot-Neustart geladen.'
+                    : ' wird deaktiviert und beim nächsten Bot-Neustart nicht mehr geladen.'}
+                </p>
+                <p className="text-xs text-yellow-400 mt-2">
+                  Der Bot muss neu gestartet werden, damit die Änderung wirksam wird.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  await toggleCog(pendingToggle.config, pendingToggle.cog)
+                  setPendingToggle(null)
+                }}
+                disabled={togglingCog !== null && Object.keys(togglingCog).length > 0}
+                className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
+                  pendingToggle.enable
+                    ? 'bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20'
+                    : 'bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 hover:bg-yellow-500/20'
+                }`}
+              >
+                {Object.keys(togglingCog).length > 0 ? 'Bitte warten...' : (pendingToggle.enable ? 'Aktivieren' : 'Deaktivieren')}
+              </button>
+              <button
+                onClick={() => setPendingToggle(null)}
+                disabled={Object.keys(togglingCog).length > 0}
+                className="flex-1 py-2 rounded-lg text-sm font-medium bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
+              >
+                Abbrechen
+              </button>
             </div>
           </div>
         </div>
