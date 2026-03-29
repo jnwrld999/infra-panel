@@ -82,7 +82,7 @@ export default function Settings() {
 
         {/* Theme picker */}
         <section className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-foreground mb-4">Design / Theme</h3>
+          <h3 className="font-semibold text-foreground mb-4">{t('settings.themeSection')}</h3>
           <div className="grid grid-cols-4 gap-3">
             {themeEntries.map(([key, preview]) => (
               <button
@@ -110,7 +110,7 @@ export default function Settings() {
 
         {/* Font size picker */}
         <section className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-foreground mb-4">Schriftgröße</h3>
+          <h3 className="font-semibold text-foreground mb-4">{t('settings.fontSizeSection')}</h3>
           <div className="flex gap-3">
             {FONT_SIZES.map((item) => (
               <button
@@ -154,7 +154,7 @@ export default function Settings() {
 
         {/* Developer */}
         <section className="bg-card border border-border rounded-xl p-5">
-          <h3 className="font-semibold text-foreground mb-4">Entwickler</h3>
+          <h3 className="font-semibold text-foreground mb-4">{t('settings.developerSection')}</h3>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-foreground">Dev-Modus</p>
@@ -173,13 +173,13 @@ export default function Settings() {
         {/* App controls — only in Electron */}
         {window.infraPanel && (
           <section className="bg-card border border-border rounded-xl p-5">
-            <h3 className="font-semibold text-foreground mb-4">App</h3>
+            <h3 className="font-semibold text-foreground mb-4">{t('settings.appSection')}</h3>
             <button
               onClick={() => window.infraPanel?.restart()}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-muted hover:bg-muted/80 text-sm text-foreground border border-border transition-colors"
             >
               <RotateCcw size={14} />
-              App neu starten
+              {t('settings.restartApp')}
             </button>
           </section>
         )}

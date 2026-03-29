@@ -33,7 +33,7 @@ export default function Login() {
           {t('auth.loginWithDiscord')}
         </button>
         <div className="mt-5 flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">30 Tage angemeldet bleiben</span>
+          <span className="text-muted-foreground">{t('auth.stayLoggedIn')}</span>
           <Toggle checked={stayLoggedIn} onChange={handleStayToggle} />
         </div>
       </div>
