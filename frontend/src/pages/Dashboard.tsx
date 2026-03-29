@@ -1,9 +1,26 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Settings2, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
+import { Settings2, Plus, Trash2, GripVertical } from 'lucide-react'
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  useSortable,
+  rectSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { StatusBadge } from '@/components/StatusBadge'
+import { ServerMonitor } from '@/components/ServerMonitor'
 import client from '@/api/client'
 import { useUIStore, PanelType } from '@/store/uiStore'
+import { useAuthStore } from '@/store/authStore'
 import { useUserName } from '@/hooks/useUserName'
 
 // ---- Data types ----
@@ -13,10 +30,11 @@ interface LogEntry { id: number; timestamp: string; level: string; category: str
 interface DashboardUser { id: number; username: string; role: string; active: boolean }
 
 const PANEL_DEFINITIONS: Record<PanelType, { label: string; icon: string }> = {
-  servers:   { label: 'Server Status',         icon: '🖥️'  },
-  approvals: { label: 'Ausstehende Freigaben', icon: '📋'  },
-  errors:    { label: 'Fehler (24h)',           icon: '⚠️'  },
-  users:     { label: 'Nutzer',                  icon: '👥'  },
+  servers:            { label: 'Server Status',         icon: '🖥️' },
+  approvals:          { label: 'Ausstehende Freigaben', icon: '📋' },
+  errors:             { label: 'Fehler (24h)',           icon: '⚠️' },
+  users:              { label: 'Nutzer',                 icon: '👥' },
+  server_monitoring:  { label: 'Server Monitoring',      icon: '📊' },
 }
 
 // ---- Individual panel components ----
@@ -92,6 +110,64 @@ function UsersPanel({ users }: { users: DashboardUser[] }) {
   )
 }
 
+function ServerMonitoringPanel({ servers }: { servers: Server[] }) {
+  if (servers.length === 0) {
+    return <p className="text-sm text-muted-foreground">Keine Server konfiguriert.</p>
+  }
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {servers.map((s) => (
+        <ServerMonitor key={s.id} serverId={s.id} serverName={s.name} />
+      ))}
+    </div>
+  )
+}
+
+// ---- Blurred preview for the "add panel" button ----
+
+function MonitoringPreview() {
+  // Static fake chart lines and bars, looks like a monitoring widget
+  const fakeLine = (color: string, pts: [number, number][]) => {
+    const d = 'M ' + pts.map(([x, y]) => `${x},${y}`).join(' L ')
+    const fill = `M ${pts[0][0]},56 L ${pts.map(([x, y]) => `${x},${y}`).join(' L ')} L ${pts[pts.length - 1][0]},56 Z`
+    return (
+      <>
+        <path d={fill} fill={color} fillOpacity="0.15" />
+        <path d={d} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+      </>
+    )
+  }
+
+  const cpuPts: [number, number][] = [[0,38],[8,30],[16,42],[24,20],[32,34],[40,18],[48,28],[56,36],[64,22],[72,32],[80,16],[88,28],[96,24],[104,36],[112,20],[120,30]]
+  const ramPts: [number, number][] = [[0,44],[8,42],[16,40],[24,38],[32,42],[40,36],[48,40],[56,38],[64,36],[72,40],[80,34],[88,38],[96,36],[104,34],[112,38],[120,32]]
+
+  return (
+    <div className="space-y-2 p-1 pointer-events-none select-none">
+      {/* Fake server row */}
+      <div className="flex items-center gap-1.5 mb-1">
+        <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+        <div className="h-2 w-20 rounded bg-muted-foreground/30" />
+      </div>
+      {/* CPU fake chart */}
+      <div className="rounded bg-muted/30 overflow-hidden" style={{ height: 56 }}>
+        <svg viewBox="0 0 120 56" preserveAspectRatio="none" className="w-full h-full">
+          {fakeLine('#3b82f6', cpuPts)}
+        </svg>
+      </div>
+      {/* RAM fake chart */}
+      <div className="rounded bg-muted/30 overflow-hidden" style={{ height: 40 }}>
+        <svg viewBox="0 0 120 56" preserveAspectRatio="none" className="w-full h-full">
+          {fakeLine('#f59e0b', ramPts)}
+        </svg>
+      </div>
+      {/* Fake disk bar */}
+      <div className="h-2 rounded-full bg-muted/40 overflow-hidden">
+        <div className="h-full w-2/3 rounded-full bg-green-500/60" />
+      </div>
+    </div>
+  )
+}
+
 // ---- Panel wrapper ----
 
 interface PanelData {
@@ -102,31 +178,29 @@ interface PanelData {
 }
 
 function Panel({
-  type, data, editMode, isFirst, isLast,
-  onRemove, onMoveUp, onMoveDown
+  type, data, editMode, onRemove, dragHandle,
 }: {
   type: PanelType
   data: PanelData
   editMode: boolean
-  isFirst: boolean
-  isLast: boolean
   onRemove: () => void
-  onMoveUp: () => void
-  onMoveDown: () => void
+  dragHandle?: React.ReactNode
 }) {
   const def = PANEL_DEFINITIONS[type]
+  const colSpan = type === 'server_monitoring' ? 'xl:col-span-2 md:col-span-2' : ''
 
   const renderContent = () => {
     switch (type) {
-      case 'servers':   return <ServersPanel servers={data.servers} />
-      case 'approvals': return <ApprovalsPanel approvals={data.approvals} />
-      case 'errors':    return <ErrorsPanel errors={data.errors} />
-      case 'users':     return <UsersPanel users={data.users} />
+      case 'servers':           return <ServersPanel servers={data.servers} />
+      case 'approvals':         return <ApprovalsPanel approvals={data.approvals} />
+      case 'errors':            return <ErrorsPanel errors={data.errors} />
+      case 'users':             return <UsersPanel users={data.users} />
+      case 'server_monitoring': return <ServerMonitoringPanel servers={data.servers} />
     }
   }
 
   return (
-    <div className="bg-card border border-border rounded-xl p-5">
+    <div className={`bg-card border border-border rounded-xl p-5 ${colSpan}`}>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-base leading-none">{def.icon}</span>
@@ -134,13 +208,11 @@ function Panel({
         </div>
         {editMode && (
           <div className="flex items-center gap-1">
-            <button onClick={onMoveUp} disabled={isFirst} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors">
-              <ChevronUp size={14} />
-            </button>
-            <button onClick={onMoveDown} disabled={isLast} className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted disabled:opacity-30 transition-colors">
-              <ChevronDown size={14} />
-            </button>
-            <button onClick={onRemove} className="p-1 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors ml-1">
+            {dragHandle}
+            <button
+              onClick={onRemove}
+              className="p-1 rounded-md text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            >
               <Trash2 size={14} />
             </button>
           </div>
@@ -151,15 +223,75 @@ function Panel({
   )
 }
 
+// ---- Sortable panel wrapper ----
+
+function SortablePanel({
+  id, type, data, editMode, onRemove,
+}: {
+  id: string
+  type: PanelType
+  data: PanelData
+  editMode: boolean
+  onRemove: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+    position: isDragging ? 'relative' : undefined,
+  }
+
+  const dragHandle = editMode ? (
+    <button
+      {...attributes}
+      {...listeners}
+      className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-grab active:cursor-grabbing"
+      title="Verschieben"
+    >
+      <GripVertical size={14} />
+    </button>
+  ) : undefined
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <Panel
+        type={type}
+        data={data}
+        editMode={editMode}
+        onRemove={onRemove}
+        dragHandle={dragHandle}
+      />
+    </div>
+  )
+}
+
 // ---- Dashboard ----
 
 export default function Dashboard() {
   const { t } = useTranslation()
   const { dashboardPanels, setDashboardPanels } = useUIStore()
+  const { user } = useAuthStore()
   const [editMode, setEditMode] = useState(false)
   const [data, setData] = useState<PanelData>({
     servers: [], approvals: [], errors: [], users: [],
   })
+
+  const isAdminOrOwner = user?.role === 'owner' || user?.role === 'admin'
+
+  // Filter out server_monitoring for non-admin/owner
+  const visiblePanels = isAdminOrOwner
+    ? dashboardPanels
+    : dashboardPanels.filter((p) => p !== 'server_monitoring')
 
   useEffect(() => {
     client.get('/servers/').then((r) => setData((d) => ({ ...d, servers: r.data }))).catch(() => {})
@@ -168,16 +300,16 @@ export default function Dashboard() {
     client.get('/users/').then((r) => setData((d) => ({ ...d, users: r.data }))).catch(() => {})
   }, [])
 
-  const removePanel = (idx: number) => {
-    setDashboardPanels(dashboardPanels.filter((_, i) => i !== idx))
-  }
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  )
 
-  const movePanel = (idx: number, dir: -1 | 1) => {
-    const panels = [...dashboardPanels]
-    const target = idx + dir
-    if (target < 0 || target >= panels.length) return
-    ;[panels[idx], panels[target]] = [panels[target], panels[idx]]
-    setDashboardPanels(panels)
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = dashboardPanels.indexOf(active.id as PanelType)
+    const newIndex = dashboardPanels.indexOf(over.id as PanelType)
+    setDashboardPanels(arrayMove(dashboardPanels, oldIndex, newIndex))
   }
 
   const addPanel = (type: PanelType) => {
@@ -186,9 +318,11 @@ export default function Dashboard() {
     }
   }
 
-  const availableToAdd = (Object.keys(PANEL_DEFINITIONS) as PanelType[]).filter(
-    (t) => !dashboardPanels.includes(t)
-  )
+  const availableToAdd = (Object.keys(PANEL_DEFINITIONS) as PanelType[]).filter((p) => {
+    if (dashboardPanels.includes(p)) return false
+    if (p === 'server_monitoring' && !isAdminOrOwner) return false
+    return true
+  })
 
   return (
     <div>
@@ -207,40 +341,69 @@ export default function Dashboard() {
         </button>
       </div>
 
-      {/* Add panel buttons in edit mode */}
+      {/* Add panel options in edit mode */}
       {editMode && availableToAdd.length > 0 && (
-        <div className="mb-4 flex flex-wrap gap-2">
-          {availableToAdd.map((type) => (
-            <button
-              key={type}
-              onClick={() => addPanel(type)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
-            >
-              <Plus size={14} />
-              {PANEL_DEFINITIONS[type].label}
-            </button>
-          ))}
+        <div className="mb-4 flex flex-wrap gap-2 items-start">
+          {availableToAdd.map((type) =>
+            type === 'server_monitoring' ? (
+              // Blurred preview card for server monitoring
+              <div
+                key={type}
+                onClick={() => addPanel(type)}
+                className="relative w-48 rounded-xl border border-dashed border-border overflow-hidden cursor-pointer hover:border-primary/60 transition-colors group"
+              >
+                {/* Blurred background preview */}
+                <div className="blur-sm opacity-60 p-3">
+                  <MonitoringPreview />
+                </div>
+                {/* Cover overlay */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-background/50 backdrop-blur-[2px]">
+                  <Plus size={16} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                  <span className="text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors">
+                    Server Monitoring
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <button
+                key={type}
+                onClick={() => addPanel(type)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-dashed border-border text-sm text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+              >
+                <Plus size={14} />
+                {PANEL_DEFINITIONS[type].label}
+              </button>
+            )
+          )}
         </div>
       )}
 
       {/* Panels grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {dashboardPanels.map((type, idx) => (
-          <Panel
-            key={type}
-            type={type}
-            data={data}
-            editMode={editMode}
-            isFirst={idx === 0}
-            isLast={idx === dashboardPanels.length - 1}
-            onRemove={() => removePanel(idx)}
-            onMoveUp={() => movePanel(idx, -1)}
-            onMoveDown={() => movePanel(idx, 1)}
-          />
-        ))}
-      </div>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={dashboardPanels} strategy={rectSortingStrategy}>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {visiblePanels.map((type) => (
+              <SortablePanel
+                key={type}
+                id={type}
+                type={type}
+                data={data}
+                editMode={editMode}
+                onRemove={() => {
+                  const newPanels = dashboardPanels.filter((p) => p !== type)
+                  setDashboardPanels(newPanels)
+                }}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
 
-      {dashboardPanels.length === 0 && (
+      {visiblePanels.length === 0 && (
         <div className="text-center py-16 text-muted-foreground">
           <p className="text-sm">Keine Panels. Klicke auf "Anpassen" um Panels hinzuzufügen.</p>
         </div>
