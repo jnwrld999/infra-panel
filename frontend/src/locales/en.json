@@ -56,6 +56,7 @@
     "stayLoggedIn": "Stay logged in for 30 days",
     "stayLoggedInDesc": "Session automatically extended to 30 days",
     "stayLoggedInActive": "Active — next login runs for 30 days",
+    "stayLoggedInSaved": "✓ Saved",
     "devMode": "Developer",
     "devModeLabel": "Dev Mode",
     "devModeDesc": "Extra logs: button clicks, API calls, UI events",

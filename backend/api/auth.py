@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, Response, HTTPException, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 import httpx
 
@@ -227,18 +228,33 @@ async def refresh_tokens(
     return {"message": "Tokens refreshed"}
 
 
+class StayRequest(BaseModel):
+    stay: bool = True
+
 @router.post("/stay")
 def toggle_stay_session(
+    body: StayRequest,
+    request: Request,
     response: Response,
-    stay: bool = True,
     db: Session = Depends(get_db),
     current_user: DiscordUser = Depends(get_current_user),
 ):
     """Issue new tokens with the stay-logged-in flag updated (no re-login needed)."""
+    # Blocklist the old refresh token (same as /refresh endpoint does)
+    old_rt = request.cookies.get("refresh_token")
+    if old_rt:
+        old_payload = verify_token(old_rt)
+        if old_payload and old_payload.get("type") == "refresh":
+            old_jti = old_payload.get("jti")
+            if old_jti and not db.query(TokenBlocklist).filter_by(jti=old_jti).first():
+                db.add(TokenBlocklist(jti=old_jti))
+                db.commit()
+
     access_token = create_access_token({"sub": current_user.discord_id})
-    refresh_token = create_refresh_token(current_user.discord_id, stay=stay)
-    _set_auth_cookies(response, access_token, refresh_token, stay=stay)
-    return {"message": "ok", "stay": stay}
+    new_refresh_token = create_refresh_token(current_user.discord_id, stay=body.stay)
+    _set_auth_cookies(response, access_token, new_refresh_token, stay=body.stay)
+    _add_audit_log(db, "stay_session_toggled", actor_id=current_user.discord_id, details=str(body.stay))
+    return {"message": "ok", "stay": body.stay}
 
 
 @router.post("/logout")

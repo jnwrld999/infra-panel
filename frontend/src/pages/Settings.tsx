@@ -56,15 +56,17 @@ export default function Settings() {
   const [staySuccess, setStaySuccess] = useState(false)
 
   const handleStayToggle = async (v: boolean) => {
-    localStorage.setItem('infra-stay-logged-in', v ? '1' : '0')
-    setStayLoggedIn(v)
     setStayLoading(true)
     setStaySuccess(false)
     try {
-      await client.post(`/auth/stay?stay=${v}`)
+      await client.post('/auth/stay', { stay: v })
+      localStorage.setItem('infra-stay-logged-in', v ? '1' : '0')
+      setStayLoggedIn(v)
       setStaySuccess(true)
       setTimeout(() => setStaySuccess(false), 2000)
-    } catch {}
+    } catch {
+      // API failed — don't update preference, leave toggle in current state
+    }
     setStayLoading(false)
   }
 
@@ -141,11 +143,11 @@ export default function Settings() {
               <p className="text-sm text-foreground">{t('settings.stayLoggedIn')}</p>
               <p className="text-xs text-muted-foreground mt-0.5">{t('settings.stayLoggedInDesc')}</p>
             </div>
-            <Toggle checked={stayLoggedIn} onChange={handleStayToggle} />
+            <Toggle checked={stayLoggedIn} onChange={handleStayToggle} disabled={stayLoading} />
           </div>
           {stayLoggedIn && (
             <div className="mt-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
-              {staySuccess ? '✓ Gespeichert' : t('settings.stayLoggedInActive')}
+              {staySuccess ? t('settings.stayLoggedInSaved') : t('settings.stayLoggedInActive')}
             </div>
           )}
         </section>
