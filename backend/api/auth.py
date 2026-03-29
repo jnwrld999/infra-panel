@@ -26,8 +26,9 @@ def _is_secure() -> bool:
     return settings.frontend_url.startswith("https")
 
 
-def _set_auth_cookies(response: Response, access_token: str, refresh_token: str):
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str, stay: bool = False):
     secure = _is_secure()
+    refresh_max_age = (30 if stay else settings.jwt_refresh_token_expire_days) * 86400
     response.set_cookie(
         "access_token",
         access_token,
@@ -42,7 +43,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         httponly=True,
         secure=secure,
         samesite="lax",
-        max_age=settings.jwt_refresh_token_expire_days * 86400,
+        max_age=refresh_max_age,
     )
 
 
@@ -164,33 +165,16 @@ async def discord_callback(
         user.last_action = datetime.now(timezone.utc)
         db.commit()
 
-    # Issue JWT tokens
+    stay = state == "stay1"
+
+    # Issue JWT tokens (stay flag embedded in refresh token for rotation)
     access_token = create_access_token({"sub": discord_id})
-    refresh_token = create_refresh_token(discord_id)
+    refresh_token = create_refresh_token(discord_id, stay=stay)
 
     _add_audit_log(db, "login_success", actor_id=discord_id, target=username, ip=ip)
 
-    stay = state == "stay1"
-    refresh_max_age = 30 * 86400 if stay else settings.jwt_refresh_token_expire_days * 86400
-
-    secure = _is_secure()
     response = RedirectResponse(f"{settings.frontend_url}/dashboard")
-    response.set_cookie(
-        "access_token",
-        access_token,
-        httponly=True,
-        secure=secure,
-        samesite="lax",
-        max_age=settings.jwt_access_token_expire_minutes * 60,
-    )
-    response.set_cookie(
-        "refresh_token",
-        refresh_token,
-        httponly=True,
-        secure=secure,
-        samesite="lax",
-        max_age=refresh_max_age,
-    )
+    _set_auth_cookies(response, access_token, refresh_token, stay=stay)
     return response
 
 
@@ -232,12 +216,29 @@ async def refresh_tokens(
         db.add(blocked_entry)
         db.commit()
 
+    # Preserve stay preference from original login
+    stay = bool(payload.get("stay", False))
+
     # Issue new tokens
     new_access = create_access_token({"sub": discord_id})
-    new_refresh = create_refresh_token(discord_id)
+    new_refresh = create_refresh_token(discord_id, stay=stay)
 
-    _set_auth_cookies(response, new_access, new_refresh)
+    _set_auth_cookies(response, new_access, new_refresh, stay=stay)
     return {"message": "Tokens refreshed"}
+
+
+@router.post("/stay")
+def toggle_stay_session(
+    response: Response,
+    stay: bool = True,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Issue new tokens with the stay-logged-in flag updated (no re-login needed)."""
+    access_token = create_access_token({"sub": current_user.discord_id})
+    refresh_token = create_refresh_token(current_user.discord_id, stay=stay)
+    _set_auth_cookies(response, access_token, refresh_token, stay=stay)
+    return {"message": "ok", "stay": stay}
 
 
 @router.post("/logout")

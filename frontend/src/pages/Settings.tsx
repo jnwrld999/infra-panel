@@ -49,6 +49,24 @@ export default function Settings() {
   const { t } = useTranslation()
   const { theme, fontSize, setTheme, setFontSize, devMode, setDevMode } = useUIStore()
   const [info, setInfo] = useState<AppInfo | null>(null)
+  const [stayLoggedIn, setStayLoggedIn] = useState(
+    () => localStorage.getItem('infra-stay-logged-in') === '1'
+  )
+  const [stayLoading, setStayLoading] = useState(false)
+  const [staySuccess, setStaySuccess] = useState(false)
+
+  const handleStayToggle = async (v: boolean) => {
+    localStorage.setItem('infra-stay-logged-in', v ? '1' : '0')
+    setStayLoggedIn(v)
+    setStayLoading(true)
+    setStaySuccess(false)
+    try {
+      await client.post(`/auth/stay?stay=${v}`)
+      setStaySuccess(true)
+      setTimeout(() => setStaySuccess(false), 2000)
+    } catch {}
+    setStayLoading(false)
+  }
 
   useEffect(() => {
     client.get<AppInfo>('/info').then((r) => setInfo(r.data)).catch(() => {})
@@ -115,7 +133,23 @@ export default function Settings() {
           <LanguageSelector />
         </section>
 
-        {/* Security */}
+        {/* Security — 30-day login */}
+        <section className="bg-card border border-border rounded-xl p-5">
+          <h3 className="font-semibold text-foreground mb-4">{t('settings.security')}</h3>
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-foreground">{t('settings.stayLoggedIn')}</p>
+              <p className="text-xs text-muted-foreground mt-0.5">{t('settings.stayLoggedInDesc')}</p>
+            </div>
+            <Toggle checked={stayLoggedIn} onChange={handleStayToggle} />
+          </div>
+          {stayLoggedIn && (
+            <div className="mt-3 flex items-center gap-2 text-xs text-green-400 bg-green-500/10 rounded-lg px-3 py-2">
+              {staySuccess ? '✓ Gespeichert' : t('settings.stayLoggedInActive')}
+            </div>
+          )}
+        </section>
+
         {/* Developer */}
         <section className="bg-card border border-border rounded-xl p-5">
           <h3 className="font-semibold text-foreground mb-4">Entwickler</h3>
