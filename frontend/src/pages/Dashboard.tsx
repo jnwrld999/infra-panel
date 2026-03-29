@@ -5,6 +5,7 @@ import {
   DndContext,
   closestCenter,
   PointerSensor,
+  KeyboardSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -14,6 +15,7 @@ import {
   useSortable,
   rectSortingStrategy,
   arrayMove,
+  sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -187,7 +189,6 @@ function Panel({
   dragHandle?: React.ReactNode
 }) {
   const def = PANEL_DEFINITIONS[type]
-  const colSpan = type === 'server_monitoring' ? 'xl:col-span-2 md:col-span-2' : ''
 
   const renderContent = () => {
     switch (type) {
@@ -200,7 +201,7 @@ function Panel({
   }
 
   return (
-    <div className={`bg-card border border-border rounded-xl p-5 ${colSpan}`}>
+    <div className="bg-card border border-border rounded-xl p-5 h-full">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <span className="text-base leading-none">{def.icon}</span>
@@ -251,19 +252,22 @@ function SortablePanel({
     position: isDragging ? 'relative' : undefined,
   }
 
+  const colSpan = type === 'server_monitoring' ? 'xl:col-span-2 md:col-span-2' : ''
+
   const dragHandle = editMode ? (
     <button
       {...attributes}
       {...listeners}
       className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-grab active:cursor-grabbing"
       title="Verschieben"
+      aria-label="Panel verschieben"
     >
       <GripVertical size={14} />
     </button>
   ) : undefined
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} className={colSpan}>
       <Panel
         type={type}
         data={data}
@@ -301,7 +305,8 @@ export default function Dashboard() {
   }, [])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -384,7 +389,7 @@ export default function Dashboard() {
         collisionDetection={closestCenter}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={dashboardPanels} strategy={rectSortingStrategy}>
+        <SortableContext items={visiblePanels} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {visiblePanels.map((type) => (
               <SortablePanel
