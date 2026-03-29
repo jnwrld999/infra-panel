@@ -11,7 +11,7 @@ interface BotInfo {
   token_configured: boolean
   server_id?: number | null
   server?: { name: string; host: string; status: string } | null
-  plugins: { id: number; name: string; enabled: boolean }[]
+  plugins: { id: number; name: string; enabled: boolean; ext?: string }[]
 }
 
 interface LogEntry {
@@ -40,6 +40,7 @@ export default function BotDashboard() {
 
   // Plugin toggle
   const [togglingPlugin, setTogglingPlugin] = useState<string | null>(null)
+  const [toggleError, setToggleError] = useState<string | null>(null)
 
   // Restart
   const [restarting, setRestarting] = useState(false)
@@ -55,12 +56,23 @@ export default function BotDashboard() {
       client.get(`/plugins/discord-bot/${botId}`),
       client.get(`/logs/?level=ERROR&days=7&limit=5`),
     ]).then(([botRes, pluginRes, logsRes]) => {
-      const rawPlugins: { name: string; status: string }[] = pluginRes.data ?? []
-      const plugins = rawPlugins.map((p, i) => ({
-        id: i,
-        name: p.name,
-        enabled: p.status === 'active',
-      }))
+      const rawPlugins: { name: string; status: string; filename?: string; type?: string }[] = pluginRes.data ?? []
+      const plugins = rawPlugins.map((p, i) => {
+        let ext = '.py'
+        if (p.filename) {
+          const base = p.filename.replace('.disabled', '')
+          if (base.endsWith('.js')) ext = '.js'
+          else if (base.endsWith('.py')) ext = '.py'
+        } else if (p.type === 'nodejs') {
+          ext = '.js'
+        }
+        return {
+          id: i,
+          name: p.name,
+          enabled: p.status === 'active',
+          ext,
+        }
+      })
       setBot({ ...botRes.data, plugins })
       setNameInput(botRes.data.name)
       setLogs(logsRes.data ?? [])
@@ -102,50 +114,49 @@ export default function BotDashboard() {
       .finally(() => setNameSaving(false))
   }
 
+  const getPluginExtension = (pluginName: string): string => {
+    const plugin = bot?.plugins.find((p) => p.name === pluginName)
+    return plugin?.ext ?? '.py'
+  }
+
   const togglePlugin = async (pluginName: string, currentlyEnabled: boolean) => {
     if (!bot || !botId) return
     setTogglingPlugin(pluginName)
+    setToggleError(null)
     const botPath = `/root/Discord Bots/${bot.name}`
-    const filename = currentlyEnabled ? `${pluginName}.py` : `${pluginName}.py.disabled`
+    const ext = getPluginExtension(pluginName)
+    const filename = currentlyEnabled ? `${pluginName}${ext}` : `${pluginName}${ext}.disabled`
     try {
       await client.post(
         `/plugins/toggle-discord-cog?bot_id=${botId}&filename=${encodeURIComponent(filename)}&enable=${!currentlyEnabled}&bot_path=${encodeURIComponent(botPath)}`
       )
       setBot((prev) =>
         prev
-          ? {
-              ...prev,
-              plugins: prev.plugins.map((p) =>
-                p.name === pluginName ? { ...p, enabled: !currentlyEnabled } : p
-              ),
-            }
+          ? { ...prev, plugins: prev.plugins.map((p) => p.name === pluginName ? { ...p, enabled: !currentlyEnabled } : p) }
           : prev
       )
-    } catch {}
-    setTogglingPlugin(null)
+    } catch {
+      setToggleError(`${pluginName} konnte nicht ${currentlyEnabled ? 'deaktiviert' : 'aktiviert'} werden`)
+      setTimeout(() => setToggleError(null), 3000)
+    } finally {
+      setTogglingPlugin(null)
+    }
   }
 
   const restartBot = async () => {
-    if (!bot?.server_id) {
-      setRestartMsg('Kein Server verknüpft')
-      setTimeout(() => setRestartMsg(null), 3000)
-      return
-    }
+    if (!botId) return
     setRestarting(true)
     setRestartMsg(null)
     try {
-      await client.post(`/services/${bot.server_id}/action`, {
-        service_name: bot.name,
-        action: 'restart',
-        service_type: 'pm2',
-      })
+      await client.post(`/bots/${botId}/restart`)
       setRestartMsg('Neustart gesendet ✓')
       setTimeout(() => setRestartMsg(null), 3000)
     } catch {
       setRestartMsg('Neustart fehlgeschlagen')
       setTimeout(() => setRestartMsg(null), 3000)
+    } finally {
+      setRestarting(false)
     }
-    setRestarting(false)
   }
 
   if (loading) return <p className="text-muted-foreground">Lädt...</p>
@@ -275,7 +286,7 @@ export default function BotDashboard() {
             </button>
             <button
               onClick={restartBot}
-              disabled={restarting || !bot?.server_id}
+              disabled={restarting}
               className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-medium hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
             >
               <RefreshCw size={13} className={restarting ? 'animate-spin' : ''} />
@@ -291,14 +302,17 @@ export default function BotDashboard() {
 
         {/* Plugins */}
         <div className="bg-card border border-border rounded-xl p-5 md:col-span-2">
-          <div className="flex items-center gap-2 mb-3">
+          <div className="flex items-center gap-2 mb-1">
             <Puzzle size={16} className="text-muted-foreground" />
             <h3 className="font-semibold text-foreground text-sm">Plugins ({bot.plugins.length})</h3>
           </div>
+          {toggleError && (
+            <p className="text-xs text-red-400 mt-1 mb-2">{toggleError}</p>
+          )}
           {bot.plugins.length > 0 ? (
             <div className="space-y-1.5">
               {bot.plugins.map((p) => (
-                <div key={p.id ?? p.name} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                <div key={p.name} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
                   <span className={`text-sm ${p.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
                     {p.name}
                   </span>

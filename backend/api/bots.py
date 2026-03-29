@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from backend.db.session import get_db
-from backend.db.models import Bot, BotWhitelist, DiscordUser
+from backend.db.models import Bot, BotWhitelist, DiscordUser, Server
 from backend.api.deps import get_current_user, require_admin
 from backend.core.security import encrypt, decrypt
 
@@ -555,3 +555,39 @@ def get_guild_channels(
         raise
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc))
+
+
+@router.post("/{bot_id}/restart")
+def restart_bot(
+    bot_id: int,
+    db: Session = Depends(get_db),
+    current_user: DiscordUser = Depends(get_current_user),
+):
+    """Restart the bot process via PM2. Requires owner, bot_owner of this bot, or whitelist."""
+    bot = db.query(Bot).filter(Bot.id == bot_id).first()
+    if not bot:
+        raise HTTPException(status_code=404, detail="Bot not found")
+
+    if current_user.role != "owner":
+        is_bot_owner_of_this = (
+            current_user.role == "bot_owner"
+            and bot.owner_discord_id == current_user.discord_id
+        )
+        if not is_bot_owner_of_this:
+            whitelisted = db.query(BotWhitelist).filter(
+                BotWhitelist.bot_id == bot_id,
+                BotWhitelist.discord_user_id == current_user.discord_id,
+            ).first()
+            if not whitelisted:
+                raise HTTPException(status_code=403, detail="Access denied")
+
+    if not bot.server_id:
+        raise HTTPException(status_code=400, detail="Bot has no associated server")
+
+    server = db.query(Server).filter(Server.id == bot.server_id).first()
+    if not server:
+        raise HTTPException(status_code=404, detail="Server not found")
+
+    from backend.services.service_manager import ServiceManager
+    mgr = ServiceManager(server)
+    return mgr.pm2_action(bot.name, "restart")
