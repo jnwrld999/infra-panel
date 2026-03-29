@@ -652,7 +652,7 @@ export default function Plugins() {
                   await toggleCog(pendingToggle.config, pendingToggle.cog)
                   setPendingToggle(null)
                 }}
-                disabled={togglingCog !== null && Object.keys(togglingCog).length > 0}
+                disabled={Object.keys(togglingCog).length > 0}
                 className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors disabled:opacity-50 ${
                   pendingToggle.enable
                     ? 'bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20'
@@ -663,7 +663,6 @@ export default function Plugins() {
               </button>
               <button
                 onClick={() => setPendingToggle(null)}
-                disabled={Object.keys(togglingCog).length > 0}
                 className="flex-1 py-2 rounded-lg text-sm font-medium bg-muted border border-border text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50"
               >
                 Abbrechen
