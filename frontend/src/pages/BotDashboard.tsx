@@ -1,13 +1,15 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import client from '@/api/client'
 import { StatusBadge } from '@/components/StatusBadge'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
-import { Bot, Puzzle, Server, Key, Eye, EyeOff, Copy, Pencil, Check, X, AlertTriangle } from 'lucide-react'
+import { Bot, Puzzle, Server, Key, EyeOff, Copy, Pencil, Check, X, AlertTriangle, Zap, Layers, RefreshCw, Power } from 'lucide-react'
 
 interface BotInfo {
   id: number; name: string; type: string; status: string
   token_configured: boolean
+  server_id?: number | null
   server?: { name: string; host: string; status: string } | null
   plugins: { id: number; name: string; enabled: boolean }[]
 }
@@ -17,6 +19,7 @@ interface LogEntry {
 }
 
 export default function BotDashboard() {
+  const navigate = useNavigate()
   const user = useAuthStore((s) => s.user)
   const previewUser = (useUIStore as any)((s: any) => s.previewUser) ?? null
   const effectiveUser = previewUser ?? user
@@ -34,6 +37,13 @@ export default function BotDashboard() {
   const [editingName, setEditingName] = useState(false)
   const [nameInput, setNameInput] = useState('')
   const [nameSaving, setNameSaving] = useState(false)
+
+  // Plugin toggle
+  const [togglingPlugin, setTogglingPlugin] = useState<string | null>(null)
+
+  // Restart
+  const [restarting, setRestarting] = useState(false)
+  const [restartMsg, setRestartMsg] = useState<string | null>(null)
 
   // Error logs
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -57,16 +67,31 @@ export default function BotDashboard() {
     }).catch(() => {}).finally(() => setLoading(false))
   }, [botId])
 
-  const loadToken = () => {
-    if (token !== null) { setTokenRevealed((r) => !r); return }
-    setTokenLoading(true)
-    client.get(`/bots/${botId}/token`)
-      .then((r) => { setToken(r.data.token); setTokenRevealed(true) })
-      .catch(() => {})
-      .finally(() => setTokenLoading(false))
+  const holdReveal = (reveal: boolean) => {
+    if (reveal) {
+      if (!token) {
+        setTokenLoading(true)
+        client.get(`/bots/${botId}/token`)
+          .then((r) => { setToken(r.data.token); setTokenRevealed(true) })
+          .catch(() => {})
+          .finally(() => setTokenLoading(false))
+      } else {
+        setTokenRevealed(true)
+      }
+    } else {
+      setTokenRevealed(false)
+    }
   }
 
-  const copyToken = () => { if (token) navigator.clipboard.writeText(token) }
+  const copyToken = () => {
+    if (token) {
+      navigator.clipboard.writeText(token)
+    } else {
+      client.get(`/bots/${botId}/token`)
+        .then((r) => { setToken(r.data.token); navigator.clipboard.writeText(r.data.token) })
+        .catch(() => {})
+    }
+  }
 
   const saveName = () => {
     if (!nameInput.trim() || !bot) return
@@ -75,6 +100,52 @@ export default function BotDashboard() {
       .then((r) => { setBot((prev) => prev ? { ...prev, name: r.data.name } : prev); setEditingName(false) })
       .catch(() => {})
       .finally(() => setNameSaving(false))
+  }
+
+  const togglePlugin = async (pluginName: string, currentlyEnabled: boolean) => {
+    if (!bot || !botId) return
+    setTogglingPlugin(pluginName)
+    const botPath = `/root/Discord Bots/${bot.name}`
+    const filename = currentlyEnabled ? `${pluginName}.py` : `${pluginName}.py.disabled`
+    try {
+      await client.post(
+        `/plugins/toggle-discord-cog?bot_id=${botId}&filename=${encodeURIComponent(filename)}&enable=${!currentlyEnabled}&bot_path=${encodeURIComponent(botPath)}`
+      )
+      setBot((prev) =>
+        prev
+          ? {
+              ...prev,
+              plugins: prev.plugins.map((p) =>
+                p.name === pluginName ? { ...p, enabled: !currentlyEnabled } : p
+              ),
+            }
+          : prev
+      )
+    } catch {}
+    setTogglingPlugin(null)
+  }
+
+  const restartBot = async () => {
+    if (!bot?.server_id) {
+      setRestartMsg('Kein Server verknüpft')
+      setTimeout(() => setRestartMsg(null), 3000)
+      return
+    }
+    setRestarting(true)
+    setRestartMsg(null)
+    try {
+      await client.post(`/services/${bot.server_id}/action`, {
+        service_name: bot.name,
+        action: 'restart',
+        service_type: 'pm2',
+      })
+      setRestartMsg('Neustart gesendet ✓')
+      setTimeout(() => setRestartMsg(null), 3000)
+    } catch {
+      setRestartMsg('Neustart fehlgeschlagen')
+      setTimeout(() => setRestartMsg(null), 3000)
+    }
+    setRestarting(false)
   }
 
   if (loading) return <p className="text-muted-foreground">Lädt...</p>
@@ -133,9 +204,16 @@ export default function BotDashboard() {
               <span className="flex-1 text-green-400 break-all">
                 {tokenRevealed ? token : '•'.repeat(Math.min(token.length, 40))}
               </span>
-              <button onClick={loadToken} title={tokenRevealed ? 'Verbergen' : 'Anzeigen'}
-                className="flex-shrink-0 p-1 rounded hover:bg-border text-muted-foreground hover:text-foreground transition-colors">
-                {tokenRevealed ? <EyeOff size={12} /> : <Eye size={12} />}
+              <button
+                onMouseDown={() => holdReveal(true)}
+                onMouseUp={() => holdReveal(false)}
+                onMouseLeave={() => holdReveal(false)}
+                onTouchStart={() => holdReveal(true)}
+                onTouchEnd={() => holdReveal(false)}
+                title="Halten zum Anzeigen"
+                className="flex-shrink-0 p-1 rounded hover:bg-border text-muted-foreground hover:text-foreground transition-colors select-none"
+              >
+                <EyeOff size={12} />
               </button>
               <button onClick={copyToken} title="Kopieren"
                 className="flex-shrink-0 p-1 rounded hover:bg-border text-muted-foreground hover:text-foreground transition-colors">
@@ -149,11 +227,16 @@ export default function BotDashboard() {
               </p>
               {bot.token_configured && (
                 <button
-                  onClick={loadToken}
+                  onMouseDown={() => holdReveal(true)}
+                  onMouseUp={() => holdReveal(false)}
+                  onMouseLeave={() => holdReveal(false)}
+                  onTouchStart={() => holdReveal(true)}
+                  onTouchEnd={() => holdReveal(false)}
                   disabled={tokenLoading}
-                  className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border rounded-md hover:bg-border transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1 px-2 py-1 text-xs bg-muted border border-border rounded-md hover:bg-border transition-colors disabled:opacity-50 select-none"
+                  title="Halten zum Anzeigen"
                 >
-                  <Eye size={11} /> {tokenLoading ? '...' : 'Anzeigen'}
+                  <EyeOff size={11} /> {tokenLoading ? '...' : 'Halten'}
                 </button>
               )}
             </div>
@@ -177,6 +260,35 @@ export default function BotDashboard() {
           ) : <p className="text-sm text-muted-foreground">Kein Server verknüpft</p>}
         </div>
 
+        {/* Quick Actions */}
+        <div className="bg-card border border-border rounded-xl p-5 md:col-span-2">
+          <div className="flex items-center gap-2 mb-3">
+            <Zap size={16} className="text-muted-foreground" />
+            <h3 className="font-semibold text-foreground text-sm">Schnellaktionen</h3>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => navigate('/embed-builder')}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-primary/10 border border-primary/20 text-primary text-xs font-medium hover:bg-primary/20 transition-colors"
+            >
+              <Layers size={13} /> Embed Builder
+            </button>
+            <button
+              onClick={restartBot}
+              disabled={restarting || !bot?.server_id}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 text-xs font-medium hover:bg-yellow-500/20 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={13} className={restarting ? 'animate-spin' : ''} />
+              {restarting ? 'Startet...' : 'Bot neu starten'}
+            </button>
+          </div>
+          {restartMsg && (
+            <p className={`text-xs mt-2 ${restartMsg.includes('✓') ? 'text-green-400' : 'text-red-400'}`}>
+              {restartMsg}
+            </p>
+          )}
+        </div>
+
         {/* Plugins */}
         <div className="bg-card border border-border rounded-xl p-5 md:col-span-2">
           <div className="flex items-center gap-2 mb-3">
@@ -186,11 +298,27 @@ export default function BotDashboard() {
           {bot.plugins.length > 0 ? (
             <div className="space-y-1.5">
               {bot.plugins.map((p) => (
-                <div key={p.id} className="flex items-center justify-between py-1 border-b border-border last:border-0">
-                  <span className="text-sm text-foreground">{p.name}</span>
-                  <span className={`text-xs font-medium ${p.enabled ? 'text-green-400' : 'text-muted-foreground'}`}>
-                    {p.enabled ? 'Aktiv' : 'Inaktiv'}
+                <div key={p.id ?? p.name} className="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+                  <span className={`text-sm ${p.enabled ? 'text-foreground' : 'text-muted-foreground line-through'}`}>
+                    {p.name}
                   </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium ${p.enabled ? 'text-green-400' : 'text-muted-foreground'}`}>
+                      {p.enabled ? 'Aktiv' : 'Inaktiv'}
+                    </span>
+                    <button
+                      onClick={() => togglePlugin(p.name, p.enabled)}
+                      disabled={togglingPlugin === p.name}
+                      title={p.enabled ? 'Deaktivieren' : 'Aktivieren'}
+                      className={`p-1 rounded text-xs transition-colors disabled:opacity-50 ${
+                        p.enabled
+                          ? 'text-yellow-400 hover:bg-yellow-500/10'
+                          : 'text-green-400 hover:bg-green-500/10'
+                      }`}
+                    >
+                      <Power size={13} className={togglingPlugin === p.name ? 'animate-pulse' : ''} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
