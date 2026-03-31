@@ -1,4 +1,4 @@
-import paramiko, os, io
+import paramiko, os, io, shlex
 from typing import Optional
 from backend.db.models import Server
 from backend.core.security import decrypt
@@ -54,7 +54,7 @@ class SSHService:
         return {"stdout": out, "stderr": err, "exit_code": exit_code, "success": exit_code == 0}
 
     def list_files(self, path: str, pattern: str = "*") -> list[str]:
-        result = self.run_command(f"ls {path}/{pattern} 2>/dev/null")
+        result = self.run_command(f"ls {shlex.quote(path)}/{pattern} 2>/dev/null")
         files = []
         for line in result["stdout"].strip().splitlines():
             fname = line.strip().split("/")[-1]

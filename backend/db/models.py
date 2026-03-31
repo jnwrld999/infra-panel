@@ -146,3 +146,16 @@ class AppLog(Base):
     details = Column(JSON, default=dict)
 
     server = relationship("Server", back_populates="app_logs")
+
+
+class SavedEmbed(Base):
+    __tablename__ = "saved_embeds"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False)
+    discord_user_id = Column(String(64), nullable=False, index=True)
+    bot_id = Column(Integer, ForeignKey("bots.id"), nullable=True)
+    channel_id = Column(String(64), nullable=True)
+    data = Column(JSON, nullable=False)  # embed, buttons, content
+    created_at = Column(DateTime(timezone=True), default=utcnow)
+    updated_at = Column(DateTime(timezone=True), default=utcnow)

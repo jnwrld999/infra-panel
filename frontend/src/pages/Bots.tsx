@@ -13,6 +13,7 @@ interface Bot {
   type?: string
   description?: string
   restricted?: boolean
+  token_configured?: boolean
 }
 
 interface Plugin { name: string; filename: string; status: string; type: string }
@@ -166,6 +167,9 @@ export default function Bots() {
   const [requestResult, setRequestResult] = useState<'success' | 'error' | null>(null)
   const [editingName, setEditingName] = useState<Record<number, string | null>>({})
   const [nameSaving, setNameSaving] = useState<Record<number, boolean>>({})
+  const [setTokenModal, setSetTokenModal] = useState<number | null>(null)
+  const [setTokenValue, setSetTokenValue] = useState('')
+  const [setTokenSaving, setSetTokenSaving] = useState(false)
   const [embedModal, setEmbedModal] = useState<{ bot: Bot; cog: Plugin } | null>(null)
   const [embeds, setEmbeds] = useState<EmbedData[]>([])
   const [embedsLoading, setEmbedsLoading] = useState(false)
@@ -187,25 +191,26 @@ export default function Bots() {
     client.get<Server[]>('/servers/').then((r) => setServers(r.data)).catch(() => {})
   }, [])
 
-  const showToken = (id: number) => {
-    if (tokens[id]) {
-      setTokenRevealed(prev => ({ ...prev, [id]: !prev[id] }))
-      return
-    }
+  const loadToken = (id: number, onLoaded?: () => void) => {
+    if (tokens[id]) { onLoaded?.(); return }
     client.get(`/bots/${id}/token`)
       .then((r) => {
         setTokens((prev) => ({ ...prev, [id]: r.data.token }))
-        setTokenRevealed(prev => ({ ...prev, [id]: true }))
+        onLoaded?.()
       })
       .catch(() => {})
   }
 
-  const revealToken = (id: number) => {
-    setTokenRevealed(prev => ({ ...prev, [id]: !prev[id] }))
+  const holdReveal = (id: number, reveal: boolean) => {
+    if (reveal) {
+      loadToken(id, () => setTokenRevealed(prev => ({ ...prev, [id]: true })))
+    } else {
+      setTokenRevealed(prev => ({ ...prev, [id]: false }))
+    }
   }
 
   const copyToken = (id: number) => {
-    if (tokens[id]) navigator.clipboard.writeText(tokens[id])
+    loadToken(id, () => navigator.clipboard.writeText(tokens[id]))
   }
 
   const toggleExpand = (bot: Bot) => {
@@ -270,6 +275,19 @@ export default function Bots() {
       })
       .catch(() => {})
       .finally(() => setNameSaving((prev) => { const n = { ...prev }; delete n[id]; return n }))
+  }
+
+  const saveSetToken = () => {
+    if (!setTokenModal || !setTokenValue.trim()) return
+    setSetTokenSaving(true)
+    client.patch(`/bots/${setTokenModal}`, { token: setTokenValue.trim() })
+      .then(() => {
+        setBots(prev => prev.map(b => b.id === setTokenModal ? { ...b, token_configured: true } : b))
+        setSetTokenModal(null)
+        setSetTokenValue('')
+      })
+      .catch(() => {})
+      .finally(() => setSetTokenSaving(false))
   }
 
   const openEmbedModal = (bot: Bot, cog: Plugin) => {
@@ -351,6 +369,33 @@ export default function Bots() {
 
   return (
     <div>
+      {/* Set Token Modal */}
+      {setTokenModal !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSetTokenModal(null)}>
+          <div className="bg-card border border-border rounded-xl w-full max-w-sm mx-4 p-5 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-foreground mb-1">Bot Token setzen</h3>
+            <p className="text-xs text-muted-foreground mb-3">Den Token findest du im Discord Developer Portal unter deiner App → Bot → Token.</p>
+            <input
+              type="password"
+              className="w-full bg-muted border border-border rounded px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary mb-3 font-mono"
+              placeholder="Bot Token einfügen..."
+              value={setTokenValue}
+              onChange={e => setSetTokenValue(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && saveSetToken()}
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button onClick={saveSetToken} disabled={setTokenSaving || !setTokenValue.trim()}
+                className="flex-1 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors">
+                {setTokenSaving ? 'Speichert...' : 'Speichern'}
+              </button>
+              <button onClick={() => { setSetTokenModal(null); setSetTokenValue('') }}
+                className="px-3 py-2 rounded-lg border border-border text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">Abbrechen</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-bold text-foreground">Bots</h2>
         {user?.is_owner && !isBotOwner && (
@@ -435,17 +480,29 @@ export default function Bots() {
                 ) : (
                   <>
                     {(user?.is_owner || user?.role === 'owner' || user?.role === 'admin' || user?.role === 'bot_owner') && (
-                      <button onClick={() => showToken(bot.id)}
-                        className="px-3 py-1.5 text-xs bg-muted border border-border rounded-md text-foreground hover:bg-border transition-colors">
-                        Token anzeigen
-                      </button>
+                      bot.token_configured === false ? (
+                        <button onClick={() => { setSetTokenModal(bot.id); setSetTokenValue('') }}
+                          className="px-3 py-1.5 text-xs bg-yellow-500/10 border border-yellow-500/30 rounded-md text-yellow-400 hover:bg-yellow-500/20 transition-colors">
+                          Token setzen
+                        </button>
+                      ) : (
+                        <button
+                          onMouseDown={() => holdReveal(bot.id, true)}
+                          onMouseUp={() => holdReveal(bot.id, false)}
+                          onMouseLeave={() => holdReveal(bot.id, false)}
+                          onTouchStart={() => holdReveal(bot.id, true)}
+                          onTouchEnd={() => holdReveal(bot.id, false)}
+                          className="px-3 py-1.5 text-xs bg-muted border border-border rounded-md text-foreground hover:bg-border transition-colors select-none">
+                          Token halten
+                        </button>
+                      )
                     )}
                     {!bot.restricted && (
-                      <button onClick={() => loadCogs(bot.id)}
+                      <button onClick={() => { loadCogs(bot.id); setExpanded(prev => ({ ...prev, [bot.id]: true })) }}
                         disabled={cogsLoading[bot.id]}
                         className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md text-primary hover:bg-primary/10 transition-colors border border-primary/30 disabled:opacity-50">
                         {cogsLoading[bot.id] ? <Loader size={12} className="animate-spin" /> : <RefreshCw size={12} />}
-                        Cogs
+                        Plugins
                       </button>
                     )}
                   </>
@@ -456,11 +513,17 @@ export default function Bots() {
             {/* Token display */}
             {tokens[bot.id] && (
               <div className="mx-5 mb-3 flex items-center gap-2 p-2 rounded bg-muted border border-border text-xs font-mono">
-                <span className="flex-1 text-green-400 break-all">
+                <span className="flex-1 text-green-400 break-all select-none">
                   {tokenRevealed[bot.id] ? tokens[bot.id] : '•'.repeat(Math.min(tokens[bot.id].length, 40))}
                 </span>
-                <button onClick={() => revealToken(bot.id)} title={tokenRevealed[bot.id] ? 'Verbergen' : 'Anzeigen'}
-                  className="flex-shrink-0 p-1 rounded hover:bg-border transition-colors text-muted-foreground hover:text-foreground">
+                <button
+                  onMouseDown={() => holdReveal(bot.id, true)}
+                  onMouseUp={() => holdReveal(bot.id, false)}
+                  onMouseLeave={() => holdReveal(bot.id, false)}
+                  onTouchStart={() => holdReveal(bot.id, true)}
+                  onTouchEnd={() => holdReveal(bot.id, false)}
+                  title="Halten zum Anzeigen"
+                  className="flex-shrink-0 p-1 rounded hover:bg-border transition-colors text-muted-foreground hover:text-foreground select-none">
                   {tokenRevealed[bot.id] ? <EyeOff size={12} /> : <Eye size={12} />}
                 </button>
                 <button onClick={() => copyToken(bot.id)} title="Kopieren"
@@ -505,7 +568,7 @@ export default function Bots() {
                             )}
                             <button onClick={() => openEmbedModal(bot, cog)}
                               className="flex items-center gap-1 px-2 py-1 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                              <Layers size={13} /> Embeds
+                              <Layers size={13} /> Embed
                             </button>
                           </div>
                         </div>

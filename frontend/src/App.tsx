@@ -15,6 +15,7 @@ import Approvals from '@/pages/Approvals'
 import Logs from '@/pages/Logs'
 import Settings from '@/pages/Settings'
 import BotDashboard from '@/pages/BotDashboard'
+import EmbedBuilder from '@/pages/EmbedBuilder'
 
 const GH_CACHE_KEY = 'infra-panel-gh-latest'
 const GH_CACHE_TTL = 10 * 60 * 1000
@@ -61,6 +62,7 @@ export default function App() {
       .then((r) => r.json())
       .then((data: { version: string }) => setCurrentVersion(data.version))
       .catch(() => {})
+    localStorage.removeItem(GH_CACHE_KEY)
     fetchLatestGitHubVersion().then((v) => { if (v) setLatestVersion(v) })
   }, [fetchMe])
 
@@ -78,6 +80,7 @@ export default function App() {
         <Route path="/logs" element={<ProtectedRoute><Logs /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
         <Route path="/bot-dashboard" element={<ProtectedRoute><BotDashboard /></ProtectedRoute>} />
+        <Route path="/embed-builder" element={<ProtectedRoute><EmbedBuilder /></ProtectedRoute>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <UpdateNotification latestVersion={latestVersion} currentVersion={currentVersion} />

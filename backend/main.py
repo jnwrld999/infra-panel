@@ -17,6 +17,7 @@ from backend.api import logs
 from backend.api import bots
 from backend.api import users
 from backend.api import approvals
+from backend.api import embed_presets
 
 settings = get_settings()
 
@@ -56,6 +57,7 @@ app.include_router(logs.router)
 app.include_router(bots.router)
 app.include_router(users.router)
 app.include_router(approvals.router)
+app.include_router(embed_presets.router)
 
 
 @app.get("/api/health")

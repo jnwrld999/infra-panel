@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import {
   LayoutDashboard, Server, Puzzle, Bot as BotIcon,
   ClipboardCheck, Users, ScrollText, Settings,
-  ChevronLeft, ChevronRight, LogOut,
+  ChevronLeft, ChevronRight, LogOut, Layers,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore } from '@/store/uiStore'
@@ -40,6 +40,7 @@ export function Sidebar() {
     { to: '/servers', label: t('nav.servers'), icon: <Server size={18} /> },
     { to: '/plugins', label: t('nav.plugins'), icon: <Puzzle size={18} /> },
     { to: '/bots', label: t('nav.bots'), icon: <BotIcon size={18} /> },
+    { to: '/embed-builder', label: 'Embed Builder', icon: <Layers size={18} /> },
     { to: '/approvals', label: t('nav.approvals'), icon: <ClipboardCheck size={18} />, adminOnly: true },
     { to: '/users', label: t('nav.users'), icon: <Users size={18} />, adminOnly: true },
     { to: '/logs', label: t('nav.logs'), icon: <ScrollText size={18} /> },
@@ -49,6 +50,7 @@ export function Sidebar() {
   const botOwnerNavItems: NavItem[] = [
     { to: '/bot-dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} /> },
     { to: '/plugins', label: 'Plugins', icon: <Puzzle size={18} /> },
+    { to: '/embed-builder', label: 'Embed Builder', icon: <Layers size={18} /> },
     { to: '/settings', label: 'Einstellungen', icon: <Settings size={18} /> },
   ]
 
