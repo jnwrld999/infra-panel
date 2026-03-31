@@ -63,11 +63,11 @@ class SSHService:
         return files
 
     def file_exists(self, path: str) -> bool:
-        result = self.run_command(f"test -e {path} && echo yes || echo no")
+        result = self.run_command(f"test -e {shlex.quote(path)} && echo yes || echo no")
         return result["stdout"].strip() == "yes"
 
     def read_file(self, path: str) -> str:
-        return self.run_command(f"cat {path}")["stdout"]
+        return self.run_command(f"cat {shlex.quote(path)}")["stdout"]
 
     def test_connection(self) -> dict:
         try:

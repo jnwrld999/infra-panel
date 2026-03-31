@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, Response, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -35,7 +36,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str,
         access_token,
         httponly=True,
         secure=secure,
-        samesite="lax",
+        samesite="strict",
         max_age=settings.jwt_access_token_expire_minutes * 60,
     )
     response.set_cookie(
@@ -43,15 +44,15 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str,
         refresh_token,
         httponly=True,
         secure=secure,
-        samesite="lax",
+        samesite="strict",
         max_age=refresh_max_age,
     )
 
 
 def _clear_auth_cookies(response: Response):
     is_secure = settings.frontend_url.startswith("https")
-    response.delete_cookie("access_token", httponly=True, samesite="lax", secure=is_secure)
-    response.delete_cookie("refresh_token", httponly=True, samesite="lax", secure=is_secure)
+    response.delete_cookie("access_token", httponly=True, samesite="strict", secure=is_secure)
+    response.delete_cookie("refresh_token", httponly=True, samesite="strict", secure=is_secure)
 
 
 def _add_audit_log(db: Session, action: str, actor_id: str | None = None,
@@ -71,8 +72,11 @@ def _add_audit_log(db: Session, action: str, actor_id: str | None = None,
 @router.get("/discord/login")
 async def discord_login(stay: str = "0"):
     """Redirect to Discord OAuth2 authorization page."""
-    # Encode stay preference in state param so callback can read it
-    state = "stay1" if stay == "1" else "stay0"
+    # Random CSRF token — stored in a short-lived cookie, verified in callback
+    csrf_token = secrets.token_urlsafe(16)
+    stay_flag = "1" if stay == "1" else "0"
+    state = f"{csrf_token}:{stay_flag}"
+    secure = _is_secure()
     params = (
         f"client_id={settings.discord_client_id}"
         f"&redirect_uri={settings.oauth2_redirect_uri}"
@@ -80,7 +84,17 @@ async def discord_login(stay: str = "0"):
         f"&scope=identify"
         f"&state={state}"
     )
-    return RedirectResponse(f"{DISCORD_OAUTH_URL}?{params}")
+    response = RedirectResponse(f"{DISCORD_OAUTH_URL}?{params}")
+    # SameSite=lax so the cookie is sent when Discord redirects back (cross-site top-level nav)
+    response.set_cookie(
+        "oauth_state",
+        csrf_token,
+        httponly=True,
+        secure=secure,
+        samesite="lax",
+        max_age=600,  # 10 minutes — enough to complete login
+    )
+    return response
 
 
 @router.get("/discord/callback")
@@ -95,6 +109,20 @@ async def discord_callback(
     ip = request.client.host if request.client else None
 
     if error or not code:
+        return RedirectResponse(f"{settings.frontend_url}/no-access")
+
+    # Verify CSRF state
+    stored_csrf = request.cookies.get("oauth_state")
+    if not state or not stored_csrf:
+        _add_audit_log(db, "login_csrf_missing_state", ip=ip)
+        return RedirectResponse(f"{settings.frontend_url}/no-access")
+    try:
+        csrf_token, stay_flag = state.rsplit(":", 1)
+    except ValueError:
+        _add_audit_log(db, "login_csrf_bad_state_format", ip=ip)
+        return RedirectResponse(f"{settings.frontend_url}/no-access")
+    if not secrets.compare_digest(csrf_token, stored_csrf):
+        _add_audit_log(db, "login_csrf_state_mismatch", ip=ip)
         return RedirectResponse(f"{settings.frontend_url}/no-access")
 
     # Exchange code for token
@@ -166,7 +194,7 @@ async def discord_callback(
         user.last_action = datetime.now(timezone.utc)
         db.commit()
 
-    stay = state == "stay1"
+    stay = stay_flag == "1"
 
     # Issue JWT tokens (stay flag embedded in refresh token for rotation)
     access_token = create_access_token({"sub": discord_id})

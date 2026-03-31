@@ -1,6 +1,7 @@
+import json
+import shlex
 from backend.db.models import Server
 from backend.services.ssh_service import SSHService
-import json
 
 ALLOWED_ACTIONS = {"start", "stop", "restart", "status"}
 
@@ -19,11 +20,11 @@ class ServiceManager:
         if not _safe_name(service_name):
             return {"success": False, "message": "Invalid service name"}
         with SSHService(self.server) as ssh:
-            return ssh.run_command(f"systemctl {action} {service_name}")
+            return ssh.run_command(f"systemctl {action} {shlex.quote(service_name)}")
 
     def systemd_status(self, service_name: str) -> dict:
         with SSHService(self.server) as ssh:
-            result = ssh.run_command(f"systemctl is-active {service_name}")
+            result = ssh.run_command(f"systemctl is-active {shlex.quote(service_name)}")
         return {"active": result["stdout"].strip() == "active", **result}
 
     def docker_action(self, container_name: str, action: str) -> dict:
@@ -32,7 +33,7 @@ class ServiceManager:
         if not _safe_name(container_name):
             return {"success": False, "message": "Invalid container name"}
         with SSHService(self.server) as ssh:
-            return ssh.run_command(f"docker {action} {container_name}")
+            return ssh.run_command(f"docker {action} {shlex.quote(container_name)}")
 
     def docker_list(self) -> list[dict]:
         with SSHService(self.server) as ssh:
@@ -49,7 +50,7 @@ class ServiceManager:
             return {"success": False, "message": f"Invalid action: {action}"}
         if not _safe_name(process_name):
             return {"success": False, "message": "Invalid process name"}
-        cmd = f"pm2 restart {process_name} --update-env" if action == "restart" else f"pm2 {action} {process_name}"
+        cmd = f"pm2 restart {shlex.quote(process_name)} --update-env" if action == "restart" else f"pm2 {action} {shlex.quote(process_name)}"
         with SSHService(self.server) as ssh:
             return ssh.run_command(cmd)
 
