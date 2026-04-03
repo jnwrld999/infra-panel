@@ -11,7 +11,46 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ---
 
-## [1.0.0] — 2026-03-25
+## [0.4.0] — 2026-04-03
+
+> **Versioning correction:** All previous `1.x` tags were pre-release misnumbered.
+> Tags `v1.0.0`–`v1.4.0` remain in git history for reference but map to `0.0.1`–`0.3.x`.
+> This is the first release under the corrected `0.x` versioning scheme.
+
+### Added
+- **Bot Dashboard enhancements**
+  - Hold-to-reveal token display for bot tokens
+  - Plugin toggles with confirmation warning dialog before enabling/disabling a cog
+  - Bot restart button using dedicated `/bots/{id}/restart` endpoint
+  - Embed link integration on Bot Dashboard
+- **Embed system**
+  - Embed parser for Python/Java/Node.js cog files
+  - `GET /api/plugins/embeds` endpoint
+  - `POST /api/bots/{bot_id}/send-embed` endpoint
+  - EmbedPreview component and embed modal on Bots page
+- **Dashboard UX**
+  - Drag-and-drop panel reordering using @dnd-kit (with KeyboardSensor)
+- **Settings**
+  - 30-day stay-logged-in toggle with localStorage persistence
+- **Plugins & Themes**
+  - Plugin toggle UI, new themes, improved download UI
+
+### Fixed
+- Bot restart uses dedicated `/bots/{id}/restart` endpoint with proper error feedback
+- Closed authorization gaps on multiple API endpoints
+- Electron AppImage restart — pass `APPIMAGE` env as `execPath`, explicit args in `app.relaunch`
+- Replaced hardcoded German strings in Login and Settings with i18n keys
+- Stay-toggle uses request body, blocklists old token, audit log, proper error handling
+- DnD SortableContext uses `visiblePanels`, fixed col-span on wrapper
+- Removed dead null guard, allow cancel during in-flight toggle
+- Closed loop variable capture bugs, scoped embed field parsing
+
+### Changed
+- Versioning corrected from `1.x` to `0.x` (pre-release)
+
+---
+
+## [0.0.1] — 2026-03-25
 
 ### Added
 - **Phase 1 — Backend Foundation**
@@ -62,5 +101,6 @@ Versioning follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - Version displayed in FastAPI docs, Sidebar header, and Settings → About
   - CHANGELOG.md (this file)
 
-[Unreleased]: https://github.com/your-org/infra-panel/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/your-org/infra-panel/releases/tag/v1.0.0
+[Unreleased]: https://github.com/jnwrld999/infra-panel/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/jnwrld999/infra-panel/releases/tag/v0.4.0
+[0.0.1]: https://github.com/jnwrld999/infra-panel/releases/tag/v1.0.0
