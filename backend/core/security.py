@@ -43,7 +43,7 @@ def create_access_token(data: dict, expires_delta=None) -> str:
     return jwt.encode(to_encode, settings.jwt_secret, algorithm="HS256")
 
 
-def create_refresh_token(discord_id: str, stay: bool = False) -> str:
+def create_refresh_token(discord_id: str, *, stay: bool = False) -> str:
     settings = get_settings()
     days = 30 if stay else settings.jwt_refresh_token_expire_days
     expire = datetime.now(timezone.utc) + timedelta(days=days)

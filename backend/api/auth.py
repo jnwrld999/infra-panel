@@ -36,7 +36,7 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str,
         access_token,
         httponly=True,
         secure=secure,
-        samesite="strict",
+        samesite="lax",
         max_age=settings.jwt_access_token_expire_minutes * 60,
     )
     response.set_cookie(
@@ -44,15 +44,15 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str,
         refresh_token,
         httponly=True,
         secure=secure,
-        samesite="strict",
+        samesite="lax",
         max_age=refresh_max_age,
     )
 
 
 def _clear_auth_cookies(response: Response):
     is_secure = settings.frontend_url.startswith("https")
-    response.delete_cookie("access_token", httponly=True, samesite="strict", secure=is_secure)
-    response.delete_cookie("refresh_token", httponly=True, samesite="strict", secure=is_secure)
+    response.delete_cookie("access_token", httponly=True, samesite="lax", secure=is_secure)
+    response.delete_cookie("refresh_token", httponly=True, samesite="lax", secure=is_secure)
 
 
 def _add_audit_log(db: Session, action: str, actor_id: str | None = None,
@@ -72,11 +72,9 @@ def _add_audit_log(db: Session, action: str, actor_id: str | None = None,
 @router.get("/discord/login")
 async def discord_login(stay: str = "0"):
     """Redirect to Discord OAuth2 authorization page."""
-    # Random CSRF token — stored in a short-lived cookie, verified in callback
-    csrf_token = secrets.token_urlsafe(16)
+    nonce = secrets.token_urlsafe(32)
     stay_flag = "1" if stay == "1" else "0"
-    state = f"{csrf_token}:{stay_flag}"
-    secure = _is_secure()
+    state = f"{nonce}:{stay_flag}"
     params = (
         f"client_id={settings.discord_client_id}"
         f"&redirect_uri={settings.oauth2_redirect_uri}"
@@ -85,14 +83,9 @@ async def discord_login(stay: str = "0"):
         f"&state={state}"
     )
     response = RedirectResponse(f"{DISCORD_OAUTH_URL}?{params}")
-    # SameSite=lax so the cookie is sent when Discord redirects back (cross-site top-level nav)
     response.set_cookie(
-        "oauth_state",
-        csrf_token,
-        httponly=True,
-        secure=secure,
-        samesite="lax",
-        max_age=600,  # 10 minutes — enough to complete login
+        "oauth_state", nonce,
+        httponly=True, secure=_is_secure(), samesite="lax", max_age=600,
     )
     return response
 
@@ -111,18 +104,13 @@ async def discord_callback(
     if error or not code:
         return RedirectResponse(f"{settings.frontend_url}/no-access")
 
-    # Verify CSRF state
-    stored_csrf = request.cookies.get("oauth_state")
-    if not state or not stored_csrf:
-        _add_audit_log(db, "login_csrf_missing_state", ip=ip)
+    # Validate OAuth2 state to prevent CSRF
+    saved_nonce = request.cookies.get("oauth_state")
+    if not state or not saved_nonce or ":" not in state:
         return RedirectResponse(f"{settings.frontend_url}/no-access")
-    try:
-        csrf_token, stay_flag = state.rsplit(":", 1)
-    except ValueError:
-        _add_audit_log(db, "login_csrf_bad_state_format", ip=ip)
-        return RedirectResponse(f"{settings.frontend_url}/no-access")
-    if not secrets.compare_digest(csrf_token, stored_csrf):
-        _add_audit_log(db, "login_csrf_state_mismatch", ip=ip)
+    state_nonce, _ = state.rsplit(":", 1)
+    if not secrets.compare_digest(state_nonce, saved_nonce):
+        _add_audit_log(db, "oauth_csrf_mismatch", ip=ip)
         return RedirectResponse(f"{settings.frontend_url}/no-access")
 
     # Exchange code for token
@@ -194,6 +182,7 @@ async def discord_callback(
         user.last_action = datetime.now(timezone.utc)
         db.commit()
 
+    _, stay_flag = state.rsplit(":", 1)
     stay = stay_flag == "1"
 
     # Issue JWT tokens (stay flag embedded in refresh token for rotation)
@@ -204,6 +193,7 @@ async def discord_callback(
 
     response = RedirectResponse(f"{settings.frontend_url}/dashboard")
     _set_auth_cookies(response, access_token, refresh_token, stay=stay)
+    response.delete_cookie("oauth_state", httponly=True, samesite="lax", secure=_is_secure())
     return response
 
 

@@ -230,7 +230,25 @@ interface ChangelogEntry { version: string; date: string; changes: ChangelogItem
 
 const CHANGELOG: ChangelogEntry[] = [
   {
-    version: '1.3.0', date: '2026-03-28',
+    version: '0.4.0', date: '2026-04-03',
+    changes: [
+      { type: 'feature', de: 'Bot-Dashboard: Token aufdecken, Plugin-Toggles, Restart-Button, Embed-Link', en: 'Bot Dashboard: hold-to-reveal token, plugin toggles, restart button, embed link' },
+      { type: 'feature', de: 'Drag-and-Drop Panel-Sortierung auf dem Dashboard', en: 'Drag-and-drop panel reordering on Dashboard' },
+      { type: 'feature', de: 'Bestätigungsdialog vor Cog aktivieren/deaktivieren', en: 'Confirmation dialog before enabling/disabling a cog' },
+      { type: 'feature', de: '30-Tage Eingeloggt-bleiben Toggle in Einstellungen', en: '30-day stay-logged-in toggle in Settings' },
+      { type: 'feature', de: 'Embed-Parser für Python/Java/Node.js Cog-Dateien', en: 'Embed parser for Python/Java/Node.js cog files' },
+      { type: 'feature', de: 'Embed-Vorschau und Embed-Modal auf der Bots-Seite', en: 'Embed preview and embed modal on Bots page' },
+      { type: 'feature', de: 'Plugin-Toggle, neue Themes, bessere Download-UI', en: 'Plugin toggle, new themes, better download UI' },
+      { type: 'fix', de: 'Bot-Restart nutzt dedizierten /bots/{id}/restart Endpunkt', en: 'Bot restart uses dedicated /bots/{id}/restart endpoint' },
+      { type: 'fix', de: 'Autorisierungslücken auf mehreren API-Endpunkten geschlossen', en: 'Closed authorization gaps on multiple API endpoints' },
+      { type: 'fix', de: 'Electron AppImage Neustart korrigiert', en: 'Electron AppImage restart fixed' },
+      { type: 'fix', de: 'Hartcodierte deutsche Strings in Login und Settings durch i18n-Keys ersetzt', en: 'Replaced hardcoded German strings in Login and Settings with i18n keys' },
+      { type: 'fix', de: 'Stay-Toggle nutzt Request-Body, blockt alten Token', en: 'Stay-toggle uses request body, blocklists old token' },
+      { type: 'improvement', de: 'Versionierung korrigiert: 1.x → 0.x (Pre-Release)', en: 'Versioning corrected: 1.x → 0.x (pre-release)' },
+    ],
+  },
+  {
+    version: '0.3.0', date: '2026-03-28',
     changes: [
       { type: 'improvement', de: 'Umbenennung zu InfraPanel', en: 'Renamed to InfraPanel' },
       { type: 'feature', de: 'Update-Benachrichtigung bei neuer Version', en: 'Update notification for new versions' },
@@ -241,7 +259,7 @@ const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '1.2.0', date: '2026-03-26',
+    version: '0.2.0', date: '2026-03-26',
     changes: [
       { type: 'feature', de: 'Bot-Zugriff pro Nutzer verwalten', en: 'Manage bot access per user' },
       { type: 'feature', de: 'Token maskiert anzeigen mit Anzeigen/Kopieren', en: 'Token masked display with reveal/copy' },
@@ -254,7 +272,7 @@ const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '1.1.0', date: '2026-03-25',
+    version: '0.1.0', date: '2026-03-25',
     changes: [
       { type: 'fix', de: 'Toggle-Darstellung in allen Themes korrigiert', en: 'Fixed toggle positioning across all themes' },
       { type: 'feature', de: 'Discord Profilbild in der Sidebar', en: 'Discord profile picture in Sidebar' },
@@ -269,7 +287,7 @@ const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
-    version: '1.0.0', date: '2026-03-25',
+    version: '0.0.1', date: '2026-03-25',
     changes: [
       { type: 'feature', de: 'Erstveröffentlichung', en: 'Initial release' },
       { type: 'feature', de: 'Discord OAuth2 Login', en: 'Discord OAuth2 login' },

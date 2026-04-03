@@ -34,7 +34,7 @@ class UserOut(BaseModel):
     role: str
     verified: bool
     active: bool
-    language: str
+    language: Optional[str] = "en"
     added_by: Optional[str] = None
     added_at: Optional[datetime] = None
     last_action: Optional[datetime] = None
