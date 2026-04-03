@@ -23,6 +23,14 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    import logging
+    logger = logging.getLogger("infrapanel.startup")
+    if settings.jwt_secret == "changeme":
+        logger.warning("SECURITY: jwt_secret is set to default 'changeme' — set JWT_SECRET in .env")
+    if settings.secret_key == "changeme":
+        logger.warning("SECURITY: secret_key is set to default 'changeme' — set SECRET_KEY in .env")
+    if not settings.fernet_key:
+        logger.warning("SECURITY: FERNET_KEY is not set — encrypted data will be lost on restart")
     create_tables()
     yield
 

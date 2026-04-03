@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Request, Response, HTTPException, status
 from fastapi.responses import RedirectResponse
@@ -71,8 +72,9 @@ def _add_audit_log(db: Session, action: str, actor_id: str | None = None,
 @router.get("/discord/login")
 async def discord_login(stay: str = "0"):
     """Redirect to Discord OAuth2 authorization page."""
-    # Encode stay preference in state param so callback can read it
-    state = "stay1" if stay == "1" else "stay0"
+    nonce = secrets.token_urlsafe(32)
+    stay_flag = "1" if stay == "1" else "0"
+    state = f"{nonce}:{stay_flag}"
     params = (
         f"client_id={settings.discord_client_id}"
         f"&redirect_uri={settings.oauth2_redirect_uri}"
@@ -80,7 +82,12 @@ async def discord_login(stay: str = "0"):
         f"&scope=identify"
         f"&state={state}"
     )
-    return RedirectResponse(f"{DISCORD_OAUTH_URL}?{params}")
+    response = RedirectResponse(f"{DISCORD_OAUTH_URL}?{params}")
+    response.set_cookie(
+        "oauth_state", nonce,
+        httponly=True, secure=_is_secure(), samesite="lax", max_age=600,
+    )
+    return response
 
 
 @router.get("/discord/callback")
@@ -95,6 +102,15 @@ async def discord_callback(
     ip = request.client.host if request.client else None
 
     if error or not code:
+        return RedirectResponse(f"{settings.frontend_url}/no-access")
+
+    # Validate OAuth2 state to prevent CSRF
+    saved_nonce = request.cookies.get("oauth_state")
+    if not state or not saved_nonce or ":" not in state:
+        return RedirectResponse(f"{settings.frontend_url}/no-access")
+    state_nonce, _ = state.rsplit(":", 1)
+    if not secrets.compare_digest(state_nonce, saved_nonce):
+        _add_audit_log(db, "oauth_csrf_mismatch", ip=ip)
         return RedirectResponse(f"{settings.frontend_url}/no-access")
 
     # Exchange code for token
@@ -166,7 +182,8 @@ async def discord_callback(
         user.last_action = datetime.now(timezone.utc)
         db.commit()
 
-    stay = state == "stay1"
+    _, stay_flag = state.rsplit(":", 1)
+    stay = stay_flag == "1"
 
     # Issue JWT tokens (stay flag embedded in refresh token for rotation)
     access_token = create_access_token({"sub": discord_id})
@@ -176,6 +193,7 @@ async def discord_callback(
 
     response = RedirectResponse(f"{settings.frontend_url}/dashboard")
     _set_auth_cookies(response, access_token, refresh_token, stay=stay)
+    response.delete_cookie("oauth_state", httponly=True, samesite="lax", secure=_is_secure())
     return response
 
 
