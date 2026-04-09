@@ -43,7 +43,12 @@
     "noAccessDesc": "You don't have access to InfraPanel. Contact the owner.",
     "logout": "Logout",
     "stayLoggedIn": "Stay logged in for 30 days",
-    "stayLoggedInDesc": "Extend session to 30 days"
+    "stayLoggedInDesc": "Extend session to 30 days",
+    "continueAs": "Continue as {{name}}",
+    "connecting": "Connecting...",
+    "sessionExpired": "Session expired — please log in again.",
+    "useOtherAccount": "Use a different account",
+    "backTo": "← Back to {{name}}"
   },
   "settings": {
     "title": "Settings",

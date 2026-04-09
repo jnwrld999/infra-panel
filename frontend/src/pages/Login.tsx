@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/store/authStore'
 
 const LS_USER_KEY = 'infra-panel-user'
@@ -29,23 +30,31 @@ function DiscordIcon() {
 
 export default function Login() {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { user, fetchMe } = useAuthStore()
   const [cachedUser] = useState<CachedUser | null>(loadCachedUser)
   const [resuming, setResuming] = useState(false)
   const [resumeError, setResumeError] = useState(false)
   const [showDiscord, setShowDiscord] = useState(!cachedUser)
+  const autoResumeAttempted = useRef(false)
 
-  // Already authenticated (e.g. valid cookie + fetchMe succeeded) → go to dashboard
+  // Already authenticated → go to dashboard
   useEffect(() => {
     if (user) navigate('/', { replace: true })
   }, [user, navigate])
+
+  // Auto-resume: if we have a cached user, try to reconnect automatically on mount
+  useEffect(() => {
+    if (cachedUser && !autoResumeAttempted.current && !user) {
+      autoResumeAttempted.current = true
+      handleResume()
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleResume = async () => {
     setResuming(true)
     setResumeError(false)
     await fetchMe()
-    // fetchMe sets user in store → useEffect above redirects
-    // If still no user after fetchMe, cookies have expired
     const { user: u } = useAuthStore.getState()
     if (!u) {
       setResumeError(true)
@@ -83,7 +92,7 @@ export default function Login() {
 
             {resumeError && (
               <p className="text-xs text-red-400 bg-red-500/10 rounded-lg px-3 py-2 mb-3 text-center">
-                Session abgelaufen — bitte neu anmelden.
+                {t('auth.sessionExpired')}
               </p>
             )}
 
@@ -98,14 +107,14 @@ export default function Login() {
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
                 </svg>
               ) : null}
-              {resuming ? 'Verbinde...' : `Weiter als ${cachedUser.username}`}
+              {resuming ? t('auth.connecting') : t('auth.continueAs', { name: cachedUser.username })}
             </button>
 
             <button
               onClick={() => setShowDiscord(true)}
               className="w-full mt-3 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
             >
-              Anderen Account verwenden
+              {t('auth.useOtherAccount')}
             </button>
           </>
         ) : (
@@ -115,15 +124,15 @@ export default function Login() {
                 onClick={() => setShowDiscord(false)}
                 className="w-full mb-3 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
               >
-                ← Zurück zu {cachedUser.username}
+                {t('auth.backTo', { name: cachedUser.username })}
               </button>
             )}
             <a
-              href="/auth/discord/login"
+              href={`/auth/discord/login${localStorage.getItem('infra-stay-logged-in') === '0' ? '' : '?stay=1'}`}
               className="flex items-center justify-center gap-3 px-6 py-3 rounded-lg bg-[#5865F2] hover:bg-[#4752c4] text-white font-semibold transition-colors w-full"
             >
               <DiscordIcon />
-              Mit Discord anmelden
+              {t('auth.loginWithDiscord')}
             </a>
           </>
         )}
